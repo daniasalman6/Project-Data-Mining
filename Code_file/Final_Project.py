@@ -3,9 +3,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import rfit 
-
-
+from scipy.stats import chi2_contingency
+pd.set_option('display.max_columns', None)
 
 # %%
 # Read data
@@ -14,13 +13,9 @@ data = pd.read_csv("PCS.csv")
 #%% [markdown]
 ## 1. Background
 
-
-
-
 #%% [markdown]
 ## 2. Data Cleaning
 # We converted the entries labeled “UNKNOWN” into missing values and removed them to ensure that the dataset is clean and suitable for analysis.
-
 
 # %%
 # Data cleaing
@@ -43,9 +38,7 @@ data1 = data1.replace('UNKNOWN', np.nan)
 data1.isna().sum()
 
 data1_clean = data1.dropna()
-print(data1_clean.shape)
-
-
+print(f"The shape of the data is:  {data1_clean.shape}")
 
 #%% [markdown]
 ## 3. Descriptive Analysis
@@ -69,8 +62,317 @@ data1_clean.describe()
 
 #%% [markdown]
 ### Smart question 2
+# To what extent can socioeconomic factors, particularly educational attainment, predict mental health diagnosis among adults in New York State using PCS 2019, and which variables are the strongest predictors
 
+#%%
+data.head()
 
+#%%[markdown]
+# After manually looking at the dataset, I have shortlisted the following variables (socioeconomic factors) from the dataset that might impact mental health diagnosis
+### Filter by: 
+# - Age group - "ADULT"
+### Independent variables/features:
+# - Living situation: ‘Private Residence’, ‘Institutional Setting’, ’Other Living Situation’, or ‘Unknown’
+# - Household compostion: ‘Lives Alone’, ’Cohabitates with Others’, ‘Not Applicable’, or ‘Unknown’.
+# - Employment status: ‘Employed’, ‘Non-paid/Volunteer’, ‘Not In Labor Force: Unemployed and not looking for work’, ‘Unemployed, looking for work’, or ‘Unknown Employment Status’.
+# - Number of hours worked each week: ‘01-14 Hours’, ‘15-34’, ‘35 Hours or More’, ‘Not Applicable’, or ‘Unknown Employment Hours’
+# - Education Status: ‘No Formal Education’, ‘Pre-K to Fifth Grade’, ‘Middle School to High School’, ‘Some College’, ‘College or Graduate Degree’, ‘Other’, or ‘Unknown’.
+# - Special Education services: ‘Yes’, ‘No’, ‘Not Applicable’, ‘Unknown’.
+# - Mental Illness: ‘Yes’, ‘No’, or ‘Unknown’.
+# - SSI Cash Assistance: ‘Yes’, ‘No’, or ‘Unknown’
+# - SSDI Cash Assistance: ‘Yes’, ‘No’, or ‘Unknown’
+# - Veterans Disability Benefits: ‘Yes’, ‘No’, or ‘Unknown’
+# - Veterans Cash Assistance: ‘Yes’, ‘No’, or ‘Unknown’
+# - Public Assistance Cash Program: ‘Yes’, ‘No’, or ‘Unknown’
+# - Other Cash Benefits: ‘Yes’, ‘No’, or ‘Unknown’
+# - Medicaid and Medicare Insurance: ‘Yes’, ‘No’, or ‘Unknown’
+# - No Insurance: ‘Yes’ – Indicates individual DOES NOT have any health insurance; ‘No’ – Indicates individual has at least one type of health insurance; ‘Unknown’ – Indicates that it is not known whether individual has health insurance
+# - Unknown Insurance Coverage: ‘Yes’ indicates that it is not known whether individual has health insurance; ‘No’ indicates individual has at least one type of health insurance
+# - Medicaid Insurance: ‘Yes’, ‘No’, or ‘Unknown’
+# - Medicaid Managed Insurance: ‘Yes’, ‘No’, ‘Not Applicable’, ‘Unknown’.
+# - Private Insurance: ‘Yes’, ‘No’, or ‘Unknown’
+# - Child Health Plus Insurance: ‘Yes’, ‘No’, or ‘Unknown’
+# - Other Insurance: ‘Yes’, ‘No’, or ‘Unknown’
+# - Criminal Justice status: ‘Yes’, ‘No’, or ‘Unknown’
+### Target Variable
+# - Mental Illness: ‘Yes’, ‘No’, or ‘Unknown’
+
+## Data Cleaning and EDA for Q2
+
+#%%[markdown]
+### Subset Data
+
+#%%
+""""Subsetting data to filter out all infromation for people who lie in the "ADULT" age group"""
+q2_df = data[data["Age Group"] == 'ADULT']
+
+"""filter all required rows shortlisted above"""
+q2_cols = ["Living Situation", "Household Composition", "Employment Status", "Number Of Hours Worked Each Week", "Education Status", "Special Education Services", "Mental Illness", "SSI Cash Assistance", "Veterans Disability Benefits", "Veterans Cash Assistance", "Public Assistance Cash Program", "Other Cash Benefits", "Medicaid and Medicare Insurance", "No Insurance", "Unknown Insurance Coverage", "Medicaid Insurance", "Medicaid Managed Insurance", "Private Insurance", "Child Health Plus Insurance", "Other Insurance", "Criminal Justice Status"]
+
+q2_df = q2_df[[c for c in q2_cols]]
+
+#%%[markdown]
+### Removing UNKNOWN category from Mental Illness variable since it is not meaningful as a class label
+
+#%%
+q2_df = q2_df[q2_df["Mental Illness"].isin(["YES", "NO"])]
+
+#%%[markdown]
+### Inspect distribution for target variable "Mental Illness"
+
+#%%
+print(q2_df["Mental Illness"].value_counts(dropna=False))
+print(q2_df["Mental Illness"].value_counts(normalize=True) * 100)
+
+#%%[markdown]
+## EDA for Q2
+### The first step is to look for distribution of each contesting predictor
+
+#%%
+def check_dist(df: pd.DataFrame):
+    for col in df.columns:
+        print(f"\n--- {col} ---")
+        print(q2_df[col].value_counts(dropna=False))
+
+check_dist(q2_df)
+#%%[markdown]
+### Dropping variables that are not useful by looking at their ditribution
+
+#%%
+"""special education is 99% "NOT APPLICABLE" which means no predictive power so let's drop it"""
+q2_df = q2_df.drop(columns=["Special Education Services"])
+
+#%%[markdown]
+### Collapsing or merging rare or small categories
+
+#%%
+"""--- Education Status: merge rare levels ---"""
+q2_df["Education Status"] = q2_df["Education Status"].replace({
+    "NO FORMAL EDUCATION": "LOW EDUC",
+    "PRE-K TO FIFTH GRADE": "LOW EDUC"
+})
+
+"""--- Hours Worked: simplify to WORKING vs NOT WORKING ---"""
+q2_df["Working Status"] = np.where(
+    q2_df["Number Of Hours Worked Each Week"] == "NOT APPLICABLE",
+    "NOT WORKING",
+    "WORKING"
+)
+
+# drop original detailed hours
+q2_df = q2_df.drop(columns=["Number Of Hours Worked Each Week"])
+
+# --- Veterans Cash Assistance: merge very rare category ---
+q2_df["Veterans Cash Assistance"] = q2_df["Veterans Cash Assistance"].replace({
+    "YES": "ANY_ASSISTANCE",
+    "NO": "NO_ASSISTANCE",
+    "UNKNOWN": "NO_ASSISTANCE"
+})
+
+# --- Child Health Plus: merge rare YES into binary ---
+q2_df["Child Health Plus Insurance"] = np.where(
+    q2_df["Child Health Plus Insurance"] == "YES",
+    "YES",
+    "NO"
+)
+
+check_dist(q2_df)
+
+#%%[markdown]
+### Run chi square tests between dependent and independent variables
+
+#%%
+predictors = [c for c in q2_df.columns if c != "Mental Illness"]
+
+for col in predictors:
+    table = pd.crosstab(q2_df[col], q2_df["Mental Illness"])
+    chi2, p, dof, expected = chi2_contingency(table)
+    print(f"{col}: p-value = {p}")
+
+print("Out of all variables except Veterans Cash Assistance, the p-values are low so all are statistically significant")
+
+#%%[markdown]
+### Dropping Veterans Cash Assistance Column
+
+#%%
+q2_df = q2_df.drop(columns=["Veterans Cash Assistance"])
+predictors.remove("Veterans Cash Assistance")
+
+#%%[markdown]
+### Check for multicollinearity now
+
+#%%
+def cramers_v(x, y):
+    table = pd.crosstab(x, y)
+    chi2 = chi2_contingency(table)[0]
+    n = table.sum().sum()
+    r, k = table.shape
+    return np.sqrt(chi2 / (n * (min(r - 1, k - 1))))
+
+vars_list = q2_df.columns  
+cramer_matrix = pd.DataFrame(index=vars_list, columns=vars_list, dtype=float)
+
+for c1 in vars_list:
+    for c2 in vars_list:
+        cramer_matrix.loc[c1, c2] = cramers_v(q2_df[c1], q2_df[c2])
+
+"""Making a visual correlation heatmap"""
+fig, ax = plt.subplots(figsize=(12, 10))
+
+im = ax.imshow(cramer_matrix.astype(float)) 
+
+# Add numbers
+for i in range(len(vars_list)):
+    for j in range(len(vars_list)):
+        ax.text(j, i, f"{cramer_matrix.iloc[i, j]:.2f}",
+                ha="center", va="center")
+
+# Labels
+ax.set_xticks(np.arange(len(vars_list)))
+ax.set_yticks(np.arange(len(vars_list)))
+ax.set_xticklabels(vars_list, rotation=90)
+ax.set_yticklabels(vars_list)
+
+plt.title("Cramér’s V Correlation Heatmap (Categorical Variables)")
+plt.tight_layout()
+plt.show()
+
+#%%[markdown]
+### Drop highly related variables
+
+#%%
+"""The highly correlated variables are:
+   - Household Composition and Living Situation
+   - Employment Status and Working Status
+   - Medicaid And Medicare Insurance and Other Insurance
+   - Medicaid And Medicare Insurance and Private Insurance
+   - Medicaid And Medicare Insurance and Medicaid Insurance
+   - Medicaid And Medicare Insurance and Unknown Insurance Coverage
+   - Unknown Insurance Coverage and Medicaid Insurance
+   - Medicaid Insurance and No Insurance
+   - Medicaid Managed Insurance and Medicaid Insurance
+   - Private Insurance and Other Insurance"""
+
+drop_cols =  ["Household Composition", "Employment Status", "Other Insurance", "Private Insurance", "Medicaid Insurance", "Unknown Insurance Coverage","No Insurance"]
+
+q2_df = q2_df.drop(columns=drop_cols)
+for i in drop_cols:
+    predictors.remove(i)
+predictors
+
+#%%
+"""encode categorical columns"""
+q2_df["Mental Illness"] = q2_df["Mental Illness"].replace({"YES":1, "NO":0}).astype(int)
+
+q2_df = pd.get_dummies(q2_df, columns=predictors, drop_first=False)
+
+q2_df = q2_df.astype(float)
+
+#%%[markdown]
+### Build the regression model
+
+#%%
+
+from sklearn.model_selection import train_test_split
+
+X = q2_df.drop(columns=["Mental Illness"])
+y = q2_df["Mental Illness"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.30,
+    random_state=42,
+    stratify=y
+)
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report
+
+log_model = LogisticRegression(
+    class_weight='balanced',
+    max_iter=2000,
+    solver='lbfgs'
+)
+
+log_model.fit(X_train, y_train)
+log_pred = log_model.predict(X_test)
+
+print("=== Logistic Regression (Balanced) ===")
+print(classification_report(y_test, log_pred))
+
+#%%[markdown]
+##### The baseline logistic regression model performs poorly due to the extreme class imbalance in the target variable (≈98% Yes vs. 2% No). Although the model achieves high precision for the majority (“Yes”) class, it fails to correctly identify the minority (“No”) class, resulting in very low precision (0.04) and unstable recall. The overall accuracy (0.63) is misleading because it reflects the imbalance rather than true predictive power. These results indicate that logistic regression, even with class weighting, is not sufficient for this dataset and requires either resampling or a more flexible model. Let's try using Random Forest since it handles categorical dummy variables and class imbalance much better than logistic regression.
+
+#%%
+from sklearn.ensemble import RandomForestClassifier
+
+rf_model = RandomForestClassifier(
+    n_estimators=300,
+    max_depth=None,
+    class_weight='balanced',
+    random_state=42
+)
+
+rf_model.fit(X_train, y_train)
+rf_pred = rf_model.predict(X_test)
+
+print("=== Random Forest (Class-Weighted) ===")
+print(classification_report(y_test, rf_pred))
+
+#%%[markdown]
+##### The Random Forest model showed clear improvement over the simple logistic regression baseline, increasing overall recall for the majority “YES” class from 63% to 72%. The model achieved a strong F1-score of 0.83 for “YES,” indicating robust performance despite the extreme class imbalance. However, performance for the minority “NO” class remained very poor due to the small number of samples. Overall, Random Forest demonstrates better learning of nonlinear patterns but still struggles with imbalance. The next best step is to apply SMOTE (Synthetic Minority Over-Sampling Technique) before training the Random Forest because SMOTE actually creates minority samples rather than duplicating or weighting them
+
+#%%
+from imblearn.over_sampling import SMOTE
+
+# Apply SMOTE to training only
+sm = SMOTE(random_state=42, k_neighbors=5)
+X_train_sm, y_train_sm = sm.fit_resample(X_train, y_train)
+
+print("Before SMOTE:", y_train.value_counts())
+print("After SMOTE:", y_train_sm.value_counts())
+
+# Train RF on balanced synthetic data
+rf_sm = RandomForestClassifier(
+    n_estimators=300,
+    max_depth=None,
+    class_weight=None,   # SMOTE already balanced data
+    random_state=42
+)
+
+rf_sm.fit(X_train_sm, y_train_sm)
+sm_pred = rf_sm.predict(X_test)
+
+print("=== Random Forest + SMOTE ===")
+print(classification_report(y_test, sm_pred))
+
+#%%[markdown]
+##### 
+# - To address the severe imbalance (103,632 “Yes” vs. only 2,055 “No”), SMOTE was applied to synthetically create new minority-class samples. After SMOTE, the training data became perfectly balanced (103,632 vs. 103,632). The Random Forest trained on this balanced data showed a noticeable improvement in recall for the minority “No” class, increasing from near zero to 0.52. This means the model became more capable of identifying “No” cases.
+
+# - However, the precision for “No” remained extremely low (0.04), and overall performance still depended heavily on the majority class. The F1-score for “Yes” stayed strong (0.85), but the minority class signal was still weak. This result suggests that although SMOTE helps the model detect minority cases more often, the underlying predictors still do not contain strong information about Mental Illness, limiting how much improvement is possible
+
+#%%
+from sklearn.inspection import permutation_importance
+
+# Compute permutation importance on the TEST set
+perm = permutation_importance(
+    rf_sm, X_test, y_test,
+    n_repeats=10,
+    random_state=42,
+    n_jobs=-1
+)
+
+# Sort results
+sorted_idx = perm.importances_mean.argsort()[::-1]
+
+print("\n=== Permutation Importance (Top 20 Features) ===")
+for idx in sorted_idx[:20]:
+    print(f"{X.columns[idx]}: {perm.importances_mean[idx]:.4f}")
+
+#%%[markdown]
+## Conclusion for Q2:
+# - The permutation importance results show that the strongest predictors in the model are socioeconomic proxies such as Medicaid-related insurance categories, employment status, and forms of public assistance, all of which reflect broader patterns of financial stability, access to resources, and social vulnerability that can indirectly relate to mental health outcomes. However, these variables capture only partial and indirect signals, which limits how much meaningful variation the model can learn. This challenge is amplified by the extreme class imbalance in the target variable, where the overwhelming majority fall into the “Yes” category. Even after applying SMOTE, the synthetic balancing cannot create genuinely new information, it only redistributes the existing signal, which remains weak. As a result, the model performs above chance but still struggles to discriminate meaningfully between classes. Together, the indirect nature of the socioeconomic predictors and the severe imbalance in mental-illness reporting explain why the final model, although statistically valid, does not achieve strong predictive power.
 
 #%% [markdown]
 ### Smart question 3
