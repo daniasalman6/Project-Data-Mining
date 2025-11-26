@@ -158,7 +158,7 @@ q2_df["Working Status"] = np.where(
     "NOT WORKING",
     "WORKING"
 )
-
+ 
 # drop original detailed hours
 q2_df = q2_df.drop(columns=["Number Of Hours Worked Each Week"])
 
