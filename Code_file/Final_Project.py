@@ -378,81 +378,261 @@ for idx in sorted_idx[:20]:
 ### Smart question 3
 # How effectively can employment and related socioeconomic variables predict an individual’s living situation category (independent, family-based, institutional or unstable, sheltered) in New York State using PCS 2019?
 
-#%%
-# Q3
+#%% 
 
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
 
+
+#%%
 # Select data for Q3
 cols_q3 = [
     "Living Situation", 
     "Employment Status", "Age Group", "Education Status",
     "SSI Cash Assistance", "SSDI Cash Assistance",
     "Public Assistance Cash Program", "Other Cash Benefits",
-    "Medicaid Insurance", "Medicare Insurance", "Private Insurance"
-]
+    "Medicaid Insurance", "Medicare Insurance", "Private Insurance"]
+
 data_q3 = data1_clean[cols_q3].copy()
 
+#%%
+# EDA
+# Check for the imbalance issue on Y
+print(data_q3["Living Situation"].value_counts(dropna=False))
+print(data_q3["Living Situation"].value_counts(normalize=True) * 100)
 
-# transfer independent variables to dummies
-X = pd.get_dummies(
-    data_q3.drop("Living Situation", axis=1),
-    drop_first=True
+#%%[markdown]
+# Living Situation is highly imbalanced, with Private Residence taking up most of the data
+# and Institutional Setting appearing in less than 1%, which makes models lean toward the
+# majority class. Later we apply class weighting and SMOTE to ease this issue.
+
+#%%
+# Checking distributions
+for col in data_q3.columns:
+    if col == "Living Situation":
+        continue
+    print("\n", data_q3[col].value_counts(dropna=False))
+
+#%%[markdown]
+# Most predictors show reasonable variation, but a few categories are much smaller than the rest. For example, 
+# “Non-paid/Volunteer” in Employment Status and “No Formal Education” in Education Status have very small counts compared to other groups, 
+# while the assistance and insurance variables are skewed but still have enough cases to be useful for modeling.
+
+#%%
+# Compute Cramér’s V matrix
+cols = data_q3.columns
+cv_matrix = pd.DataFrame(index=cols, columns=cols, dtype=float)
+
+for c1 in cols:
+    for c2 in cols:
+        cv_matrix.loc[c1, c2] = cramers_v(data_q3[c1], data_q3[c2])
+
+# Visualization
+vars_list = cv_matrix.columns
+fig, ax = plt.subplots(figsize=(12, 10))
+
+im = ax.imshow(cv_matrix.astype(float), cmap="coolwarm")
+
+# Add numbers
+for i in range(len(vars_list)):
+    for j in range(len(vars_list)):
+        ax.text(j, i, f"{cv_matrix.iloc[i, j]:.2f}",
+                ha="center", va="center", fontsize=7)
+
+ax.set_xticks(np.arange(len(vars_list)))
+ax.set_yticks(np.arange(len(vars_list)))
+ax.set_xticklabels(vars_list, rotation=90)
+ax.set_yticklabels(vars_list)
+
+plt.title("Cramér’s V Correlation Heatmap (Q3 Variables)")
+plt.tight_layout()
+plt.show()
+
+#%%[markdown]
+# None of the predictors show high correlation in the Cramér’s V matrix, 
+# and most relationships stay below 0.60. This means there is no strong multicollinearity issue, so all variables can be kept for modeling.
+
+#%%
+## Prepare data for modeling
+
+# Dependent variable
+y = data_q3["Living Situation"]
+
+# Independent variables
+X = data_q3.drop(columns=["Living Situation"])
+
+# One-hot encode X
+X = pd.get_dummies(X, drop_first=True).astype(float)
+
+# Encode y
+from sklearn.preprocessing import LabelEncoder
+le = LabelEncoder()
+y_encoded = le.fit_transform(y)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y_encoded,
+    test_size=0.30,
+    random_state=42,
+    stratify=y_encoded
 )
 
-# Encoder independent
-from sklearn.preprocessing import LabelEncoder
-
-le = LabelEncoder()
-y = le.fit_transform(data_q3["Living Situation"])
-
-
-# Split and training
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
+#%%[markdown]
+## Logistic Regression
+#%%
 # Setup Multinomial Logistic Regression
 model_q3 = LogisticRegression(
-    max_iter=1000,
-    solver='lbfgs',
-    class_weight='balanced'
-)
+    max_iter = 1000,
+    solver = 'lbfgs',
+    class_weight = 'balanced',
+    multi_class = 'multinomial')
+
 model_q3.fit(X_train, y_train)
 y_pred = model_q3.predict(X_test)
 
-# result
+# Results
 print(confusion_matrix(y_test, y_pred))
-print(classification_report(y_test, y_pred, target_names=le.classes_))
+print(classification_report(y_test, y_pred, target_names = le.classes_))
 
 #%%
 # Visualization
-
 cm = confusion_matrix(y_test, y_pred)
 
-sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
-            xticklabels=le.classes_,
-            yticklabels=le.classes_)
+sns.heatmap(cm, annot = True, fmt = "d", cmap = "Blues",
+            xticklabels = le.classes_,
+            yticklabels = le.classes_)
 
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Confusion Matrix for Multinomial Logistic Regression")
 plt.show()
 
+#%%[markdown]
+# The logistic regression model does not perform well, with an overall accuracy of about 0.49.
+# The model predicts the majority class (Private Residence) with high precision (0.93)
+# but still has low recall (0.47), and the smaller classes perform much worse,
+# especially Institutional, which has extremely low precision (0.02).
+# Because the data is highly imbalanced and the groups overlap a lot, the next step
+# is to try more flexible models and apply SMOTE to improve the minority-class predictions.
 
-#%% [markdown]
-# The model shows moderate performance in predicting the different Living Situation categories.
-# It identifies Private Residence with high precision (0.93), but the recall is lower (0.48),
-# meaning that some true Private cases are not captured.
-# For Institutional and Other Living Situation, the precision is also lower,
-# suggesting that the model sometimes mixes these categories.
+#%%[markdown]
+## Random Forest
+
+#%%
+# Setup Random Forest
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix, classification_report
+
+rf_model = RandomForestClassifier(
+    n_estimators = 300,
+    max_depth = None,
+    class_weight = 'balanced',
+    random_state = 42)
+
+# Train
+rf_model.fit(X_train, y_train)
+
+# Predict
+rf_pred = rf_model.predict(X_test)
+
+# Results
+print(confusion_matrix(y_test, rf_pred))
+print(classification_report(y_test, rf_pred, target_names = le.classes_))
+
+#%%
+# Visualization
+cm_rf = confusion_matrix(y_test, rf_pred)
+
+sns.heatmap(cm_rf, annot = True, fmt = "d", cmap = "Blues",
+            xticklabels = le.classes_,
+            yticklabels = le.classes_)
+
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix — Random Forest")
+plt.show()
+
+#%%[markdown]
+# The random forest performs slightly better than logistic regression, achieving an accuracy of about 0.54. 
+# The majority class (Private Residence) still shows very high precision (0.94) but only moderate recall (0.51). 
+# The Other Living Situation category improves substantially, reaching a recall of 0.70. However, 
+# the Institutional Setting group remains difficult for the model to predict, with extremely low precision (0.02) because it represents less than 1 percent of the dataset. Overall, 
+# these results show that the random forest captures more structure than logistic regression, but the severe class imbalance continues to limit performance.
+
+#%%[markdown]
+## SMOTE + Random Froest
+
+#%%
+# SMOTE + Random Forest
+
+from imblearn.over_sampling import SMOTE
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix, classification_report
+
+# Apply SMOTE to training data only
+sm = SMOTE(random_state = 42, k_neighbors = 5)
+X_train_sm, y_train_sm = sm.fit_resample(X_train, y_train)
+
+print("Before SMOTE:", pd.Series(y_train).value_counts())
+print("After SMOTE:", pd.Series(y_train_sm).value_counts())
+
+# Train Random Forest on SMOTE data
+rf_sm = RandomForestClassifier(
+    n_estimators = 300,
+    max_depth = None,
+    class_weight = None,
+    random_state = 42)
+
+rf_sm.fit(X_train_sm, y_train_sm)
+sm_pred = rf_sm.predict(X_test)
+
+# Results
+print(confusion_matrix(y_test, sm_pred))
+print(classification_report(y_test, sm_pred, target_names = le.classes_))
+
+#%%[markdown]
+# After applying SMOTE to the training data, the random forest improves slightly. 
+# The overall accuracy reaches about 0.56. 
+# For the majority class (Private Residence), precision is 0.93 and recall is 0.53. 
+# The Other Living Situation class shows better performance, with recall increasing to 0.69. 
+# The Institutional Setting class still has very low precision (0.02) even though its recall improves to 0.52, mainly because the test set contains very few real cases from this group. 
+# The weighted F1-score is about 0.63, making the SMOTE + Random Forest model the most balanced option among the ones tested.
+
+#%%
+# Feature Importance
+
+importances = rf_sm.feature_importances_
+feature_names = X.columns
+
+imp_df = pd.DataFrame({
+    "Feature": feature_names,
+    "Importance": importances}).sort_values(by = "Importance", ascending = False)
+
+imp_df.head(15)
+
+#%%
+plt.barh(imp_df.head(15)["Feature"], imp_df.head(15)["Importance"])
+plt.gca().invert_yaxis()
+plt.xlabel("Important level")
+plt.title("Top 15 Important Features (Random Forest + SMOTE)")
+plt.show()
+
+#%%[markdown]
+# The Random Forest results suggest that insurance coverage and financial assistance are the most useful predictors of living situation. Private Insurance,
+# SSI Cash Assistance, and being outside the labor force show the highest importance,
+# meaning these factors help the model separate the three housing groups the most. 
+# Age Group (especially being a child) and Medicaid/Medicare also matter because they are closely linked with certain types of housing.
+# Education and other employment categories still add some information, but smaller groups like Non-paid/Volunteer contribute very little.
+
+#%%[markdown]
+#### Conclusion for Q3
 #
-# One possible explanation is the class imbalance in the dataset,
-# along with features that may not strongly separate the three groups.
-#
-# The confusion matrix shows that the model performs best for Private Residence,
-# while the other categories have more overlap, which indicates that
-# some living situations share similar patterns and are harder to distinguish.
+# In Q3, predicting living situation was difficult because the classes were extremely imbalanced and their patterns overlapped a lot. 
+# Logistic regression performed poorly(accuracy about 0.49), and while the random forest did better, it still had trouble with the smallest group. 
+# After applying SMOTE, the random forest reached about 0.56 accuracy and gave the most balanced performance overall. 
+# Insurance coverage, financial assistance, age, and employment status were the main predictors, and these variables helped the model separate the three living-situation groups more effectively.
+
 
 
 #%% [markdown]
