@@ -4,6 +4,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import chi2_contingency
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, roc_auc_score, roc_curve
 pd.set_option('display.max_columns', None)
 
 # %%
@@ -29,7 +34,9 @@ cols_all = [
     "Education Status", "SSI Cash Assistance", "SSDI Cash Assistance",
     "Public Assistance Cash Program", "Other Cash Benefits",
     "Medicaid Insurance", "Medicare Insurance", "Private Insurance",
-    "Employment Status"
+    "Employment Status", "Veteran Status", "Region Served", "Sexual Orientation", 
+    "Household Composition", "Alcohol Related Disorder", 
+    "Drug Substance Disorder"
 ]
 
 data1 = data[[c for c in cols_all if c in data.columns]].copy()
@@ -57,6 +64,315 @@ data1_clean.describe()
 
 #%% [markdown]
 ### Smart question 1
+
+# Only keep YES/NO rows - no "Unknown"
+data1_clean = data1_clean[data1_clean['Mental Illness'].isin(['NO','YES'])]
+
+# Code variable of interest as 0="NO" and 1="YES"
+data1_clean['Mental Illness'] = data1_clean['Mental Illness'].map({'NO': 0, 'YES': 1})
+
+#%%
+# Create values for independent variables
+categorical_cols = [
+    'Race', 'Sex', 'Age Group', 'Education Status', 'Veteran Status',
+    'Region Served', 'Sexual Orientation', 'Household Composition',
+    'Alcohol Related Disorder', 'Drug Substance Disorder'
+]
+
+le_dict = {}
+for col in categorical_cols:
+    le = LabelEncoder()
+    data1_clean[col] = le.fit_transform(data1_clean[col])
+    le_dict[col] = le
+
+#%%
+# Plot prevalence of Mental Illness
+data1_clean['Mental Illness'] = data1_clean['Mental Illness'].map({0: 'NO', 1: 'YES'})
+
+data1_clean['Mental Illness'].value_counts()
+data1_clean['Mental Illness'].value_counts(normalize=True).plot(kind='bar', color='steelblue')
+plt.title('Prevalence of Mental Illness')
+plt.ylabel('Proportion')
+plt.xlabel('Mental Illness')
+plt.xticks(rotation=0)
+plt.show()
+
+#%%
+data1_clean['Mental Illness'] = data1_clean['Mental Illness'].map({'NO': 0, 'YES': 1})
+
+# Over 90% of individuals in New York said they have a mental illness.
+
+
+#%%
+# Plotting all variables and their relationship with mental illness presence
+def bar_plot(col):
+    plot_df = data1_clean.groupby(col)['Mental Illness'].mean().reset_index()
+
+    mapping = {code: label for code, label in enumerate(le_dict[col].classes_)}
+    plot_df[f'{col}_Label'] = plot_df[col].map(mapping)
+
+    plt.figure(figsize=(10, 5))
+    sns.barplot(data=plot_df, x=f'{col}_Label', y='Mental Illness')
+    plt.title(f'Mental Illness Prevalence by {col}')
+    plt.ylabel('Share with Mental Illness')
+    plt.xlabel(col)
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
+# Generate plots
+for var in categorical_cols:
+    bar_plot(var)
+
+# Mental illness prevalence is roughly the same among all races and genders. Adults are more
+# likely to have a mental illness than children, and the more eduacted an individual is, the more 
+# likely they are to have a mental illness. Suprisingly, mental health prescence does not differ 
+# between those that are and are not veterans, and mental health prescence is about the same among 
+# regions in New York. There is also a small difference of thos who have mental illnesses among
+# straight and non-heterosexual orientations. Those who live with others have a slightly less share
+# of people who have a mental illness than those who live alone. Suprinsignly, the prescence of those 
+# who have a mental illness is the same among those who do and do not have alcohol related and drug 
+# substance disorders. 
+
+
+#%%
+# defining independent and dependent variables
+X = data1_clean[categorical_cols]
+y = data1_clean['Mental Illness']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=123
+)
+
+#%%
+# Logistic Regression
+logit_model = LogisticRegression(max_iter=2000)
+logit_model.fit(X_train, y_train)
+
+y_pred_logit = logit_model.predict(X_test)
+y_pred_prob_logit = logit_model.predict_proba(X_test)[:, 1]
+
+print("Classification Report")
+print(classification_report(y_test, y_pred_logit))
+
+auc_logit = roc_auc_score(y_test, y_pred_prob_logit)
+print("AUC:", auc_logit)
+
+fpr, tpr, _ = roc_curve(y_test, y_pred_prob_logit)
+plt.plot(fpr, tpr, label=f'Logistic Regression (AUC = {auc_logit:.2f})')
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve')
+plt.legend()
+plt.show()
+
+# The logistic regression highlights the class imbalance of the data. The accuracy of the model
+# appears to be 97%. However, the model does not identify those who do not have a mental illness.
+# The AUC of 0.67 demonstrates that the logistic regression had modest discriminative ability. 
+# The current model is not suitable for the data due to the class imbalance. 
+
+#%%
+# Logistic Regression 
+logit_model = LogisticRegression(max_iter=2000)
+logit_model.fit(X_train, y_train)
+
+y_pred_logit = logit_model.predict(X_test)
+y_pred_prob_logit = logit_model.predict_proba(X_test)[:, 1]
+
+print("Logistic Regression Classification Report")
+print(classification_report(y_test, y_pred_logit))
+
+auc_logit = roc_auc_score(y_test, y_pred_prob_logit)
+print("Logistic Regression AUC:", auc_logit)
+
+# Odds ratios
+odds_ratios = pd.DataFrame({
+    "Feature": X.columns,
+    "Coefficient": logit_model.coef_[0],
+    "Odds Ratio": np.exp(logit_model.coef_[0])
+}).sort_values(by="Odds Ratio", ascending=False)
+
+print("Logistic Regression Odds Ratios")
+print(odds_ratios)
+
+# Graph
+plt.figure(figsize=(8, 6))
+sns.barplot(data=odds_ratios, x="Odds Ratio", y="Feature")
+plt.title("Odds Ratios from Logistic Regression")
+plt.axvline(1, color='red', linestyle='--')  # 1 = no effect
+plt.tight_layout()
+plt.show()
+
+# ROC Curve
+fpr, tpr, _ = roc_curve(y_test, y_pred_prob_logit)
+plt.plot(fpr, tpr, label=f'Logistic Regression (AUC = {auc_logit:.2f})')
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve')
+plt.legend()
+plt.show()
+
+# The independent/demographic variables do not explain sufficient variation in mental illness 
+# prevalence. This model does not predict those without mental illness since there is significant 
+# class imbalance.  
+
+#%% 
+# Logistic Regression 2 - Accounting for  Class Imbalance
+# Balance class weight
+logit_model = LogisticRegression(max_iter=1000, class_weight='balanced')
+logit_model.fit(X_train, y_train)
+
+y_pred = logit_model.predict(X_test)
+y_pred_prob = logit_model.predict_proba(X_test)[:,1]
+
+# Classification report
+print("Logistic Regression Classification Report")
+print(classification_report(y_test, y_pred))
+
+# ROC AUC
+auc = roc_auc_score(y_test, y_pred_prob)
+print("Logistic Regression AUC:", auc)
+
+# ROC Curve
+fpr, tpr, thresholds = roc_curve(y_test, y_pred_prob)
+plt.plot(fpr, tpr, label=f'Logistic Regression (AUC={auc:.2f})')
+plt.plot([0,1],[0,1],'k--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve')
+plt.legend()
+plt.show()
+
+# When class imbalance is accounted for, a decent amount of individuals who do not have a mental 
+# illness are identified. The model accuracy is now 76%, but identifies those without a mental illness. 
+# The demographic/independent variables have modest predictive power now. 
+#%%  
+# Odds Ratios
+coefficients = logit_model.coef_[0]
+odds_ratios = np.exp(coefficients)
+
+odds_df = pd.DataFrame({
+    'Feature': X.columns,
+    'Coefficient': coefficients,
+    'Odds Ratio': odds_ratios
+}).sort_values(by='Odds Ratio', ascending=False)
+
+print("Logistic Regression Odds Ratios")
+print(odds_df)
+
+
+# Plot odds ratios
+plt.figure(figsize=(8,6))
+sns.barplot(x='Odds Ratio', y='Feature', data=odds_df.sort_values('Odds Ratio', ascending=False))
+plt.title('Logistic Regression Odds Ratios')
+plt.show()
+
+# The improved logistic regression suggests that being older decreases the chance of having a mental illness, cohabitating
+# with others and substance use minimally increases the risk of having a mental illness. All demographic variables have 
+# small impacts on mental illnesses. 
+
+#%%
+# Random Forest
+rf_model = RandomForestClassifier(n_estimators=500, random_state=123)
+rf_model.fit(X_train, y_train)
+
+y_pred_rf = rf_model.predict(X_test)
+y_pred_prob_rf = rf_model.predict_proba(X_test)[:, 1]
+
+print("Classification Report")
+print(classification_report(y_test, y_pred_rf))
+
+auc_rf = roc_auc_score(y_test, y_pred_prob_rf)
+print("AUC:", auc_rf)
+
+fpr, tpr, _ = roc_curve(y_test, y_pred_prob_rf)
+plt.plot(fpr, tpr, label=f'Random Forest (AUC = {auc_rf:.2f})')
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve')
+plt.legend()
+plt.show()
+
+# The Random Forest model also had an accuracy of 97% and an AUC of 0.69, again having some 
+# discriminative ability. This model also suffers from the class imbalance, having a recall of 0.04
+# for individuals without a mental illness. This model is extremely biased toward those who do have
+# a mental illness.
+#%%
+# Random Forest Feature Importance
+importances = rf_model.feature_importances_
+feature_names = X.columns
+feat_imp_df = pd.DataFrame({'Feature': feature_names, 'Importance': importances})
+feat_imp_df = feat_imp_df.sort_values(by='Importance', ascending=False)
+
+print(feat_imp_df)
+
+sns.barplot(x='Importance', y='Feature', data=feat_imp_df)
+plt.title('Feature Importance - Random Forest')
+plt.show()
+
+# The random forest model demonstrates that region served, education status, and race are the most 
+# significant predictors of mental illness. Sexual orientation, household composition, and age group 
+# have some importance on the model. Sex, alcohol related disorder, drug substance disorder, and 
+# veteran status do not contribute much to the model's predictions. 
+#%%
+# Fit Random Forest with balanced class weighting
+rf_model = RandomForestClassifier(n_estimators=500, random_state=123, class_weight='balanced')
+rf_model.fit(X_train, y_train)
+
+# Predictions
+y_pred = rf_model.predict(X_test)
+y_pred_prob = rf_model.predict_proba(X_test)[:,1]
+
+# Classification report
+print("Classification Report")
+print(classification_report(y_test, y_pred))
+
+# ROC AUC
+auc = roc_auc_score(y_test, y_pred_prob)
+print("AUC:", auc)
+
+# ROC Curve
+fpr, tpr, thresholds = roc_curve(y_test, y_pred_prob)
+plt.plot(fpr, tpr, label=f'Random Forest (AUC={auc:.2f})')
+plt.plot([0,1],[0,1],'k--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Random Forest ROC Curve')
+plt.legend()
+plt.show()
+
+# When the class is balanced, the random forest model had a 75% accuracy and an AUC of 0.68.
+# The recall for those without a mental illness is 0.55 which improved from 0.04. 
+#%%  
+# Feature importances
+importances = rf_model.feature_importances_
+feat_df = pd.DataFrame({'Feature': X.columns, 'Importance': importances}).sort_values(by='Importance', ascending=False)
+print("Feature Importances")
+print(feat_df)
+
+# Plot feature importances
+plt.figure(figsize=(10,6))
+sns.barplot(x='Importance', y='Feature', data=feat_df)
+plt.title('Feature Importances')
+plt.tight_layout()
+plt.show()
+
+# Region served, education status, and age group are the most influential predictors
+# of mental illness. Race, sexual orientation, and household consumption have some importance
+# on predicting mental illness. Sex, alchohol related disorder, drug substance disorder, and
+# veteran status did not contribute much to the model.
+
+#%%
+# Correlation heatmap
+plt.figure(figsize=(12,8))
+sns.heatmap(data1_clean[categorical_cols + ['Mental Illness']].corr(), annot=True, cmap='coolwarm')
+plt.title("Correlation Heatmap")
+plt.show()
+
+# No correlation is above 0.51, so I do not think multicollinearity needs to be addressed.
+# %%
 
 
 
