@@ -8,6 +8,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.inspection import permutation_importance
+from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import classification_report, roc_auc_score, roc_curve
 pd.set_option('display.max_columns', None)
 
@@ -18,6 +21,11 @@ data = pd.read_csv("PCS.csv")
 #%% [markdown]
 ## 1. Background
 
+# Mental health and housing stability are ongoing concerns in New York State. Many adults face financial stress, limited insurance coverage, and varying levels of social support, all of which may influence both mental-health outcomes and where a person lives. Prior work shows that social determinants such as economic stability and housing conditions are closely linked to mental-health risk (Maqbool et al., 2015).
+#
+# The 2019 PCS dataset provides detailed information on mental illness, socioeconomic conditions, and living arrangements. Because it includes both health-related and financial variables, it allows us to examine how factors such as employment, education, assistance programs, and insurance relate to mental-health reporting and housing categories. Studies have found that access to insurance and financial resources plays an important role in shaping mental-health outcomes (Tanarsuwongkul et al., 2025).
+#
+# In this project, we use the PCS data to describe these relationships and evaluate how well socioeconomic variables can predict mental illness and different types of living situations. Understanding these links is important because housing and mental health often influence one another in meaningful ways (Healthy People 2030).
 #%% [markdown]
 ## 2. Data Cleaning
 # We converted the entries labeled “UNKNOWN” into missing values and removed them to ensure that the dataset is clean and suitable for analysis.
@@ -58,6 +66,7 @@ data1_clean.describe()
 #%% [markdown]
 # After cleaning the data, we have 14 variables and 146,737 observations, with no missing values.
 # This gives us a clean dataset that is ready for analysis.
+
 #%% [markdown]
 ## 4. Interpreting results
 
@@ -100,11 +109,14 @@ plt.show()
 #%%
 data1_clean['Mental Illness'] = data1_clean['Mental Illness'].map({'NO': 0, 'YES': 1})
 
+#%%[markdown]
 # Over 90% of individuals in New York said they have a mental illness.
 
 
+#%%[markdown]
+#### Plotting all variables and their relationship with mental illness presence
+
 #%%
-# Plotting all variables and their relationship with mental illness presence
 def bar_plot(col):
     plot_df = data1_clean.groupby(col)['Mental Illness'].mean().reset_index()
 
@@ -123,6 +135,7 @@ def bar_plot(col):
 for var in categorical_cols:
     bar_plot(var)
 
+#%%[markdown]
 # Mental illness prevalence is roughly the same among all races and genders. Adults are more
 # likely to have a mental illness than children, and the more eduacted an individual is, the more 
 # likely they are to have a mental illness. Suprisingly, mental health prescence does not differ 
@@ -143,8 +156,10 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.3, random_state=123
 )
 
+#%%[markdown]
+#### Logistic Regression
+
 #%%
-# Logistic Regression
 logit_model = LogisticRegression(max_iter=2000)
 logit_model.fit(X_train, y_train)
 
@@ -166,6 +181,7 @@ plt.title('ROC Curve')
 plt.legend()
 plt.show()
 
+#%%[markdown]
 # The logistic regression highlights the class imbalance of the data. The accuracy of the model
 # appears to be 97%. However, the model does not identify those who do not have a mental illness.
 # The AUC of 0.67 demonstrates that the logistic regression had modest discriminative ability. 
@@ -213,13 +229,15 @@ plt.title('ROC Curve')
 plt.legend()
 plt.show()
 
+#%%[markdown]
 # The independent/demographic variables do not explain sufficient variation in mental illness 
 # prevalence. This model does not predict those without mental illness since there is significant 
 # class imbalance.  
 
-#%% 
-# Logistic Regression 2 - Accounting for  Class Imbalance
-# Balance class weight
+#%% [markdown]
+#### Logistic Regression 2 - Accounting for  Class Imbalance
+#### Balance class weight
+#%%
 logit_model = LogisticRegression(max_iter=1000, class_weight='balanced')
 logit_model.fit(X_train, y_train)
 
@@ -244,9 +262,11 @@ plt.title('ROC Curve')
 plt.legend()
 plt.show()
 
+#%%[markdown]
 # When class imbalance is accounted for, a decent amount of individuals who do not have a mental 
 # illness are identified. The model accuracy is now 76%, but identifies those without a mental illness. 
 # The demographic/independent variables have modest predictive power now. 
+
 #%%  
 # Odds Ratios
 coefficients = logit_model.coef_[0]
@@ -268,12 +288,15 @@ sns.barplot(x='Odds Ratio', y='Feature', data=odds_df.sort_values('Odds Ratio', 
 plt.title('Logistic Regression Odds Ratios')
 plt.show()
 
+#%%[markdown]
 # The improved logistic regression suggests that being older decreases the chance of having a mental illness, cohabitating
 # with others and substance use minimally increases the risk of having a mental illness. All demographic variables have 
 # small impacts on mental illnesses. 
 
+#%%[markdown]
+#### Random Forest
+
 #%%
-# Random Forest
 rf_model = RandomForestClassifier(n_estimators=500, random_state=123)
 rf_model.fit(X_train, y_train)
 
@@ -295,12 +318,13 @@ plt.title('ROC Curve')
 plt.legend()
 plt.show()
 
+#%%[markdown]
 # The Random Forest model also had an accuracy of 97% and an AUC of 0.69, again having some 
 # discriminative ability. This model also suffers from the class imbalance, having a recall of 0.04
 # for individuals without a mental illness. This model is extremely biased toward those who do have
 # a mental illness.
 #%%
-# Random Forest Feature Importance
+#### Random Forest Feature Importance
 importances = rf_model.feature_importances_
 feature_names = X.columns
 feat_imp_df = pd.DataFrame({'Feature': feature_names, 'Importance': importances})
@@ -312,12 +336,16 @@ sns.barplot(x='Importance', y='Feature', data=feat_imp_df)
 plt.title('Feature Importance - Random Forest')
 plt.show()
 
+#%%[markdown]
+
 # The random forest model demonstrates that region served, education status, and race are the most 
 # significant predictors of mental illness. Sexual orientation, household composition, and age group 
 # have some importance on the model. Sex, alcohol related disorder, drug substance disorder, and 
 # veteran status do not contribute much to the model's predictions. 
+#%%[markdown]
+#### Fit Random Forest with balanced class weighting
+
 #%%
-# Fit Random Forest with balanced class weighting
 rf_model = RandomForestClassifier(n_estimators=500, random_state=123, class_weight='balanced')
 rf_model.fit(X_train, y_train)
 
@@ -343,10 +371,14 @@ plt.title('Random Forest ROC Curve')
 plt.legend()
 plt.show()
 
+#%%[markdown]
+
 # When the class is balanced, the random forest model had a 75% accuracy and an AUC of 0.68.
 # The recall for those without a mental illness is 0.55 which improved from 0.04. 
-#%%  
-# Feature importances
+#%%[markdown]
+#### Feature importances
+
+#%%
 importances = rf_model.feature_importances_
 feat_df = pd.DataFrame({'Feature': X.columns, 'Importance': importances}).sort_values(by='Importance', ascending=False)
 print("Feature Importances")
@@ -359,18 +391,22 @@ plt.title('Feature Importances')
 plt.tight_layout()
 plt.show()
 
+#%%[markdown]
 # Region served, education status, and age group are the most influential predictors
 # of mental illness. Race, sexual orientation, and household consumption have some importance
 # on predicting mental illness. Sex, alchohol related disorder, drug substance disorder, and
 # veteran status did not contribute much to the model.
 
+#%%[markdown]
+#### Correlation heatmap
+
 #%%
-# Correlation heatmap
 plt.figure(figsize=(12,8))
 sns.heatmap(data1_clean[categorical_cols + ['Mental Illness']].corr(), annot=True, cmap='coolwarm')
 plt.title("Correlation Heatmap")
 plt.show()
 
+#%%[markdown]
 # No correlation is above 0.51, so I do not think multicollinearity needs to be addressed.
 # %%
 
@@ -385,9 +421,9 @@ data.head()
 
 #%%[markdown]
 # After manually looking at the dataset, I have shortlisted the following variables (socioeconomic factors) from the dataset that might impact mental health diagnosis
-### Filter by: 
+#### Filter by: 
 # - Age group - "ADULT"
-### Independent variables/features:
+#### Independent variables/features:
 # - Living situation: ‘Private Residence’, ‘Institutional Setting’, ’Other Living Situation’, or ‘Unknown’
 # - Household compostion: ‘Lives Alone’, ’Cohabitates with Others’, ‘Not Applicable’, or ‘Unknown’.
 # - Employment status: ‘Employed’, ‘Non-paid/Volunteer’, ‘Not In Labor Force: Unemployed and not looking for work’, ‘Unemployed, looking for work’, or ‘Unknown Employment Status’.
@@ -410,13 +446,13 @@ data.head()
 # - Child Health Plus Insurance: ‘Yes’, ‘No’, or ‘Unknown’
 # - Other Insurance: ‘Yes’, ‘No’, or ‘Unknown’
 # - Criminal Justice status: ‘Yes’, ‘No’, or ‘Unknown’
-### Target Variable
+#### Target Variable
 # - Mental Illness: ‘Yes’, ‘No’, or ‘Unknown’
 
-## Data Cleaning and EDA for Q2
+#### Data Cleaning and EDA for Q2
 
 #%%[markdown]
-### Subset Data
+#### Subset Data
 
 #%%
 """"Subsetting data to filter out all infromation for people who lie in the "ADULT" age group"""
@@ -428,21 +464,21 @@ q2_cols = ["Living Situation", "Household Composition", "Employment Status", "Nu
 q2_df = q2_df[[c for c in q2_cols]]
 
 #%%[markdown]
-### Removing UNKNOWN category from Mental Illness variable since it is not meaningful as a class label
+#### Removing UNKNOWN category from Mental Illness variable since it is not meaningful as a class label
 
 #%%
 q2_df = q2_df[q2_df["Mental Illness"].isin(["YES", "NO"])]
 
 #%%[markdown]
-### Inspect distribution for target variable "Mental Illness"
+#### Inspect distribution for target variable "Mental Illness"
 
 #%%
 print(q2_df["Mental Illness"].value_counts(dropna=False))
 print(q2_df["Mental Illness"].value_counts(normalize=True) * 100)
 
 #%%[markdown]
-## EDA for Q2
-### The first step is to look for distribution of each contesting predictor
+#### EDA for Q2
+#### The first step is to look for distribution of each contesting predictor
 
 #%%
 def check_dist(df: pd.DataFrame):
@@ -452,14 +488,14 @@ def check_dist(df: pd.DataFrame):
 
 check_dist(q2_df)
 #%%[markdown]
-### Dropping variables that are not useful by looking at their ditribution
+#### Dropping variables that are not useful by looking at their ditribution
 
 #%%
 """special education is 99% "NOT APPLICABLE" which means no predictive power so let's drop it"""
 q2_df = q2_df.drop(columns=["Special Education Services"])
 
 #%%[markdown]
-### Collapsing or merging rare or small categories
+#### Collapsing or merging rare or small categories
 
 #%%
 """--- Education Status: merge rare levels ---"""
@@ -495,7 +531,7 @@ q2_df["Child Health Plus Insurance"] = np.where(
 check_dist(q2_df)
 
 #%%[markdown]
-### Run chi square tests between dependent and independent variables
+#### Run chi square tests between dependent and independent variables
 
 #%%
 predictors = [c for c in q2_df.columns if c != "Mental Illness"]
@@ -508,14 +544,14 @@ for col in predictors:
 print("Out of all variables except Veterans Cash Assistance, the p-values are low so all are statistically significant")
 
 #%%[markdown]
-### Dropping Veterans Cash Assistance Column
+#### Dropping Veterans Cash Assistance Column
 
 #%%
 q2_df = q2_df.drop(columns=["Veterans Cash Assistance"])
 predictors.remove("Veterans Cash Assistance")
 
 #%%[markdown]
-### Check for multicollinearity now
+#### Check for multicollinearity now
 
 #%%
 def cramers_v(x, y):
@@ -554,7 +590,7 @@ plt.tight_layout()
 plt.show()
 
 #%%[markdown]
-### Drop highly related variables
+#### Drop highly related variables
 
 #%%
 """The highly correlated variables are:
@@ -585,11 +621,9 @@ q2_df = pd.get_dummies(q2_df, columns=predictors, drop_first=False)
 q2_df = q2_df.astype(float)
 
 #%%[markdown]
-### Build the regression model
+#### Build the regression model
 
 #%%
-
-from sklearn.model_selection import train_test_split
 
 X = q2_df.drop(columns=["Mental Illness"])
 y = q2_df["Mental Illness"]
@@ -601,7 +635,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y
 )
 
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 
 log_model = LogisticRegression(
@@ -620,7 +653,6 @@ print(classification_report(y_test, log_pred))
 ##### The baseline logistic regression model performs poorly due to the extreme class imbalance in the target variable (≈98% Yes vs. 2% No). Although the model achieves high precision for the majority (“Yes”) class, it fails to correctly identify the minority (“No”) class, resulting in very low precision (0.04) and unstable recall. The overall accuracy (0.63) is misleading because it reflects the imbalance rather than true predictive power. These results indicate that logistic regression, even with class weighting, is not sufficient for this dataset and requires either resampling or a more flexible model. Let's try using Random Forest since it handles categorical dummy variables and class imbalance much better than logistic regression.
 
 #%%
-from sklearn.ensemble import RandomForestClassifier
 
 rf_model = RandomForestClassifier(
     n_estimators=300,
@@ -668,8 +700,6 @@ print(classification_report(y_test, sm_pred))
 
 # - However, the precision for “No” remained extremely low (0.04), and overall performance still depended heavily on the majority class. The F1-score for “Yes” stayed strong (0.85), but the minority class signal was still weak. This result suggests that although SMOTE helps the model detect minority cases more often, the underlying predictors still do not contain strong information about Mental Illness, limiting how much improvement is possible
 
-#%%
-from sklearn.inspection import permutation_importance
 
 # Compute permutation importance on the TEST set
 perm = permutation_importance(
@@ -687,18 +717,13 @@ for idx in sorted_idx[:20]:
     print(f"{X.columns[idx]}: {perm.importances_mean[idx]:.4f}")
 
 #%%[markdown]
-## Conclusion for Q2:
+#### Conclusion for Q2:
 # - The permutation importance results show that the strongest predictors in the model are socioeconomic proxies such as Medicaid-related insurance categories, employment status, and forms of public assistance, all of which reflect broader patterns of financial stability, access to resources, and social vulnerability that can indirectly relate to mental health outcomes. However, these variables capture only partial and indirect signals, which limits how much meaningful variation the model can learn. This challenge is amplified by the extreme class imbalance in the target variable, where the overwhelming majority fall into the “Yes” category. Even after applying SMOTE, the synthetic balancing cannot create genuinely new information, it only redistributes the existing signal, which remains weak. As a result, the model performs above chance but still struggles to discriminate meaningfully between classes. Together, the indirect nature of the socioeconomic predictors and the severe imbalance in mental-illness reporting explain why the final model, although statistically valid, does not achieve strong predictive power.
 
 #%% [markdown]
 ### Smart question 3
 # How effectively can employment and related socioeconomic variables predict an individual’s living situation category (independent, family-based, institutional or unstable, sheltered) in New York State using PCS 2019?
 
-#%% 
-
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, confusion_matrix
 
 
 #%%
@@ -712,9 +737,10 @@ cols_q3 = [
 
 data_q3 = data1_clean[cols_q3].copy()
 
+#%%[markdown]
+#### Check for the imbalance issue on Y
+
 #%%
-# EDA
-# Check for the imbalance issue on Y
 print(data_q3["Living Situation"].value_counts(dropna=False))
 print(data_q3["Living Situation"].value_counts(normalize=True) * 100)
 
@@ -723,8 +749,10 @@ print(data_q3["Living Situation"].value_counts(normalize=True) * 100)
 # and Institutional Setting appearing in less than 1%, which makes models lean toward the
 # majority class. Later we apply class weighting and SMOTE to ease this issue.
 
+#%%[markdown]
+#### Checking distributions
+
 #%%
-# Checking distributions
 for col in data_q3.columns:
     if col == "Living Situation":
         continue
@@ -735,8 +763,10 @@ for col in data_q3.columns:
 # “Non-paid/Volunteer” in Employment Status and “No Formal Education” in Education Status have very small counts compared to other groups, 
 # while the assistance and insurance variables are skewed but still have enough cases to be useful for modeling.
 
+#%%[markdown]
+#### Compute Cramér’s V matrix
+
 #%%
-# Compute Cramér’s V matrix
 cols = data_q3.columns
 cv_matrix = pd.DataFrame(index=cols, columns=cols, dtype=float)
 
@@ -770,7 +800,7 @@ plt.show()
 # and most relationships stay below 0.60. This means there is no strong multicollinearity issue, so all variables can be kept for modeling.
 
 #%%
-## Prepare data for modeling
+# Prepare data for modeling
 
 # Dependent variable
 y = data_q3["Living Situation"]
@@ -795,7 +825,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 #%%[markdown]
-## Logistic Regression
+#### Logistic Regression
 #%%
 # Setup Multinomial Logistic Regression
 model_q3 = LogisticRegression(
@@ -833,12 +863,10 @@ plt.show()
 # is to try more flexible models and apply SMOTE to improve the minority-class predictions.
 
 #%%[markdown]
-## Random Forest
+#### Random Forest
 
 #%%
 # Setup Random Forest
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, classification_report
 
 rf_model = RandomForestClassifier(
     n_estimators = 300,
@@ -877,14 +905,11 @@ plt.show()
 # these results show that the random forest captures more structure than logistic regression, but the severe class imbalance continues to limit performance.
 
 #%%[markdown]
-## SMOTE + Random Froest
+#### SMOTE + Random Froest
 
 #%%
 # SMOTE + Random Forest
 
-from imblearn.over_sampling import SMOTE
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, classification_report
 
 # Apply SMOTE to training data only
 sm = SMOTE(random_state = 42, k_neighbors = 5)
@@ -915,9 +940,10 @@ print(classification_report(y_test, sm_pred, target_names = le.classes_))
 # The Institutional Setting class still has very low precision (0.02) even though its recall improves to 0.52, mainly because the test set contains very few real cases from this group. 
 # The weighted F1-score is about 0.63, making the SMOTE + Random Forest model the most balanced option among the ones tested.
 
-#%%
-# Feature Importance
+#%%[markdown]
+#### Feature Importance
 
+#%%
 importances = rf_sm.feature_importances_
 feature_names = X.columns
 
@@ -953,13 +979,26 @@ plt.show()
 
 #%% [markdown]
 ## 5. Conclusion
-
+# Across the three smart questions, the PCS dataset helped reveal clear patterns linking socioeconomic and demographic factors with both mental-illness reporting and living-situation categories. Although data imbalance limited prediction strength, the analyses consistently identified which variables had the greatest influence on each outcome.
+#
+# For mental illness (Q1 & Q2), age group, education, household composition, employment status, and several insurance/assistance variables showed meaningful associations, indicating that social and economic stability is linked with how individuals report mental-health conditions.
+# For living situation (Q3), insurance coverage, cash-assistance programs, age group, and employment status were the strongest predictors, helping separate private residence, institutional settings, and other living arrangements.
+#
+# Overall, the models highlighted the importance of insurance, financial support, age, and employment as the most consistent drivers across all three questions, providing useful insight into how socioeconomic conditions shape both mental-health outcomes and housing patterns in New York State.
 
 
 #%% [markdown]
 ## 6. Recommendations
-
+# A main limitation in this project is the severe class imbalance across all three questions, which makes the smaller groups difficult for the models to learn and leads to unstable results. Another issue is that most variables in the PCS dataset are categorical and split into many small levels, increasing the chance of overfitting and limiting the models’ ability to capture stronger patterns.
+#
+# For the next step, we could try more advanced imbalance-handling methods such as Balanced Random Forest or XGBoost with class weights to improve the performance for minority groups. Adding continuous variables, if they become available, may help strengthen the predictive signal. It may also be useful to analyze minority groups separately so their patterns are not overshadowed by the dominant majority class.
 
 
 #%% [markdown]
 ## 7. References
+# Healthy People 2030. (n.d.). *Housing instability.* Office of Disease Prevention and Health Promotion. https://health.gov/
+#
+# Maqbool, N., Viveiros, J., & Ault, M. (2015). *The impacts of affordable housing on health: A research summary.* National Housing Conference.
+#
+#Tanarsuwongkul, S., et al. (2025). Associations between social determinants of health and mental health disorders among US adults. *Epidemiology and Psychiatric Sciences.*
+# %%
