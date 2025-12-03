@@ -668,57 +668,13 @@ print("=== Random Forest (Class-Weighted) ===")
 print(classification_report(y_test, rf_pred))
 
 #%%[markdown]
-##### The Random Forest model showed clear improvement over the simple logistic regression baseline, increasing overall recall for the majority “YES” class from 63% to 72%. The model achieved a strong F1-score of 0.83 for “YES,” indicating robust performance despite the extreme class imbalance. However, performance for the minority “NO” class remained very poor due to the small number of samples. Overall, Random Forest demonstrates better learning of nonlinear patterns but still struggles with imbalance. The next best step is to apply SMOTE (Synthetic Minority Over-Sampling Technique) before training the Random Forest because SMOTE actually creates minority samples rather than duplicating or weighting them
-
-#%%
-from imblearn.over_sampling import SMOTE
-
-# Apply SMOTE to training only
-sm = SMOTE(random_state=42, k_neighbors=5)
-X_train_sm, y_train_sm = sm.fit_resample(X_train, y_train)
-
-print("Before SMOTE:", y_train.value_counts())
-print("After SMOTE:", y_train_sm.value_counts())
-
-# Train RF on balanced synthetic data
-rf_sm = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=None,
-    class_weight=None,   # SMOTE already balanced data
-    random_state=42
-)
-
-rf_sm.fit(X_train_sm, y_train_sm)
-sm_pred = rf_sm.predict(X_test)
-
-print("=== Random Forest + SMOTE ===")
-print(classification_report(y_test, sm_pred))
-
-#%%[markdown]
-##### 
-# - To address the severe imbalance (103,632 “Yes” vs. only 2,055 “No”), SMOTE was applied to synthetically create new minority-class samples. After SMOTE, the training data became perfectly balanced (103,632 vs. 103,632). The Random Forest trained on this balanced data showed a noticeable improvement in recall for the minority “No” class, increasing from near zero to 0.52. This means the model became more capable of identifying “No” cases.
-
-# - However, the precision for “No” remained extremely low (0.04), and overall performance still depended heavily on the majority class. The F1-score for “Yes” stayed strong (0.85), but the minority class signal was still weak. This result suggests that although SMOTE helps the model detect minority cases more often, the underlying predictors still do not contain strong information about Mental Illness, limiting how much improvement is possible
-
-
-# Compute permutation importance on the TEST set
-perm = permutation_importance(
-    rf_sm, X_test, y_test,
-    n_repeats=10,
-    random_state=42,
-    n_jobs=-1
-)
-
-# Sort results
-sorted_idx = perm.importances_mean.argsort()[::-1]
-
-print("\n=== Permutation Importance (Top 20 Features) ===")
-for idx in sorted_idx[:20]:
-    print(f"{X.columns[idx]}: {perm.importances_mean[idx]:.4f}")
+##### The Random Forest model showed clear improvement over the simple logistic regression baseline, increasing overall recall for the majority “YES” class from 63% to 72%. The model achieved a strong F1-score of 0.83 for “YES,” indicating robust performance despite the extreme class imbalance. However, performance for the minority “NO” class remained very poor due to the small number of samples. Overall, Random Forest demonstrates better learning of nonlinear patterns but still struggles with imbalance. 
 
 #%%[markdown]
 #### Conclusion for Q2:
-# - The permutation importance results show that the strongest predictors in the model are socioeconomic proxies such as Medicaid-related insurance categories, employment status, and forms of public assistance, all of which reflect broader patterns of financial stability, access to resources, and social vulnerability that can indirectly relate to mental health outcomes. However, these variables capture only partial and indirect signals, which limits how much meaningful variation the model can learn. This challenge is amplified by the extreme class imbalance in the target variable, where the overwhelming majority fall into the “Yes” category. Even after applying SMOTE, the synthetic balancing cannot create genuinely new information, it only redistributes the existing signal, which remains weak. As a result, the model performs above chance but still struggles to discriminate meaningfully between classes. Together, the indirect nature of the socioeconomic predictors and the severe imbalance in mental-illness reporting explain why the final model, although statistically valid, does not achieve strong predictive power.
+#### Across both Logistic Regression and Random Forest, the predictive performance for mental health diagnosis was limited due to the extreme class imbalance in the dataset (≈98% “Yes” vs. 2% “No”). Logistic Regression struggled to identify the minority class even with class weighting, producing very low precision and unstable recall. Random Forest improved performance for the majority class and captured more nonlinear relationships, but it still failed to reliably detect the few “No” cases.
+
+#### Overall, the modeling results indicate that the current set of socioeconomic predictors has weak standalone predictive power for distinguishing mental health diagnosis outcomes. More balanced data or the inclusion of additional behavioral, clinical, or contextual features would likely be necessary to build a model capable of meaningful minority-class prediction.
 
 #%% [markdown]
 ### Smart question 3
