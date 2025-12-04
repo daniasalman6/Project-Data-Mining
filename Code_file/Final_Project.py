@@ -670,11 +670,36 @@ print(classification_report(y_test, rf_pred))
 #%%[markdown]
 ##### The Random Forest model showed clear improvement over the simple logistic regression baseline, increasing overall recall for the majority “YES” class from 63% to 72%. The model achieved a strong F1-score of 0.83 for “YES,” indicating robust performance despite the extreme class imbalance. However, performance for the minority “NO” class remained very poor due to the small number of samples. Overall, Random Forest demonstrates better learning of nonlinear patterns but still struggles with imbalance. 
 
+#%%
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline
+
+sm = SMOTE(random_state=42)
+rf = RandomForestClassifier(n_estimators=300, random_state=42)
+
+pipeline = Pipeline([
+    ('smote', sm),
+    ('rf', rf)
+])
+
+pipeline.fit(X_train, y_train)
+pred = pipeline.predict(X_test)
+
+print(classification_report(y_test, pred))
+
+#%%
+proba = rf_model.predict_proba(X_test)[:, 1]
+pred_thresh = (proba > 0.1).astype(int)
+print(classification_report(y_test, pred_thresh))
+
 #%%[markdown]
 #### Conclusion for Q2:
-#### Across both Logistic Regression and Random Forest, the predictive performance for mental health diagnosis was limited due to the extreme class imbalance in the dataset (≈98% “Yes” vs. 2% “No”). Logistic Regression struggled to identify the minority class even with class weighting, producing very low precision and unstable recall. Random Forest improved performance for the majority class and captured more nonlinear relationships, but it still failed to reliably detect the few “No” cases.
+#### The results from Logistic Regression, Random Forest, and SMOTE-based resampling consistently show that the current set of socioeconomic variables provides very limited predictive power for distinguishing adults with and without a mental health diagnosis. Even after addressing the extreme class imbalance with class weighting and SMOTE, the models were unable to learn a strong or stable pattern for the minority class. SMOTE improved recall for the “No” group but did so at the cost of extremely low precision and substantial declines in majority-class accuracy, indicating that the model was capturing synthetic patterns rather than meaningful real-world structure.
 
-#### Overall, the modeling results indicate that the current set of socioeconomic predictors has weak standalone predictive power for distinguishing mental health diagnosis outcomes. More balanced data or the inclusion of additional behavioral, clinical, or contextual features would likely be necessary to build a model capable of meaningful minority-class prediction.
+#### Threshold tuning was also explored to further improve minority-class detection. Although lowering the classification threshold increased the model’s willingness to label cases as “No,” the predicted probabilities remained heavily skewed toward the majority class. As a result, even very low thresholds produced only minimal gains in minority recall and led to a surge in false positives, confirming that the model had not learned any reliable signal for identifying “No” cases.
+
+#### Overall, the modeling results indicate that the predictive limitations arise primarily from the underlying data and feature set, not from the choice of algorithm or imbalance-handling technique. To build a model capable of meaningful minority-class prediction, a more balanced dataset and the inclusion of richer behavioral, clinical, or contextual variables would be required.
+
 
 #%% [markdown]
 ### Smart question 3
