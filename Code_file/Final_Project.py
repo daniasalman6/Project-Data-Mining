@@ -667,13 +667,44 @@ rf_pred = rf_model.predict(X_test)
 print("=== Random Forest (Class-Weighted) ===")
 print(classification_report(y_test, rf_pred))
 
+
 #%%[markdown]
 ##### The class-weighted Random Forest shows a clear improvement over logistic regression, especially in identifying the majority class (1.0). Precision for class 1 remains extremely high (0.99), and recall increases to 0.72, leading to a strong F1-score of 0.83. Performance on the minority class (0.0) is still limited due to the very small support, while recall from changes from 0.72 (logistic) to 0.58, while precision remains low (0.04). Overall accuracy rises to 0.72, reflecting better learning of nonlinear patterns in the data. Although the minority class is still challenging, Random Forest provides a more robust and balanced performance than logistic regression under severe class imbalance.
 
+#%%
+# Get raw feature importances
+importances = rf_model.feature_importances_
+feat_df = pd.DataFrame({'Feature': X.columns, 'Importance': importances})
+
+# Group by original variable name (everything before the first underscore)
+feat_df['OriginalFeature'] = feat_df['Feature'].str.split('_').str[0]
+
+# Sum importances for all dummy columns from the same variable
+grouped_importance = (
+    feat_df.groupby('OriginalFeature')['Importance']
+           .sum()
+           .sort_values(ascending=False)
+)
+
+print(grouped_importance)
+
+plt.figure(figsize=(10,6))
+sns.barplot(
+    x=grouped_importance.values,
+    y=grouped_importance.index
+)
+plt.title("Feature Importance by Original Variable")
+plt.xlabel("Importance")
+plt.ylabel("Original Feature")
+plt.tight_layout()
+plt.show()
+#%%[markdown]
+### The Random Forest shows that several socioeconomic factors contribute to predicting mental health diagnoses. Education status is the strongest overall predictor, followed closely by Medicaid-related insurance and SSI cash assistance, indicating that financial and support-related factors matter most. Criminal justice status, living situation, and working status also provide moderate signal, while other benefit programs and child health insurance contribute smaller effects. Overall, the model uses many factors, but each provides only modest predictive power.
+
+
 #%%[markdown]
 #### Conclusion for Q2:
-#### The models showed that socioeconomic factors do provide useful signal in predicting mental health diagnosis, as reflected by the strong performance on the majority class. However, overall prediction strength was limited by the severe class imbalance in the dataset, which made it difficult for both models to correctly identify the minority group. This means the factors in the dataset do provide useful predictive signal, but they are not strong enough on their own to fully explain or separate mental health outcomes.
-
+#### Overall, predicting mental illness from the available factors is difficult because the data is highly imbalanced. Logistic regression struggles with the minority class, while the Random Forest performs better but still cannot reliably identify class 0. Feature importance shows that education, Medicaid insurance, and SSI assistance are the strongest predictors, with other socioeconomic factors contributing smaller effects. In general, the models capture some patterns, but the features provide only limited power for accurate classification.
 #%% [markdown]
 ### Smart question 3
 # How effectively can employment and related socioeconomic variables predict an individual’s living situation category (independent, family-based, institutional or unstable, sheltered) in New York State using PCS 2019?
