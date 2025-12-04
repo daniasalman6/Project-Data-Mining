@@ -650,7 +650,7 @@ print("=== Logistic Regression (Balanced) ===")
 print(classification_report(y_test, log_pred))
 
 #%%[markdown]
-##### The baseline logistic regression model performs poorly due to the extreme class imbalance in the target variable (≈98% Yes vs. 2% No). Although the model achieves high precision for the majority (“Yes”) class, it fails to correctly identify the minority (“No”) class, resulting in very low precision (0.04) and unstable recall. The overall accuracy (0.63) is misleading because it reflects the imbalance rather than true predictive power. These results indicate that logistic regression, even with class weighting, is not sufficient for this dataset and requires either resampling or a more flexible model. Let's try using Random Forest since it handles categorical dummy variables and class imbalance much better than logistic regression.
+##### The balanced logistic regression model shows that it performs well in identifying the majority class (1.0), achieving very high precision (0.99) and a strong recall (0.63) for this class. This means when the model predicts “1”, it is almost always correct, and it captures most of the actual 1’s. However, performance on the minority class (0.0) remains weak: precision is extremely low (0.04), meaning most predicted 0’s are actually incorrect, and although recall is higher (0.72), the very low precision results in a poor F1-score (0.07). Overall accuracy is 0.63, but this is driven almost entirely by the model’s success on the majority class. These results indicate that even with class balancing, logistic regression struggles to meaningfully learn the minority “0” class due to severe class imbalance and limited separation in the features.
 
 #%%
 
@@ -668,38 +668,11 @@ print("=== Random Forest (Class-Weighted) ===")
 print(classification_report(y_test, rf_pred))
 
 #%%[markdown]
-##### The Random Forest model showed clear improvement over the simple logistic regression baseline, increasing overall recall for the majority “YES” class from 63% to 72%. The model achieved a strong F1-score of 0.83 for “YES,” indicating robust performance despite the extreme class imbalance. However, performance for the minority “NO” class remained very poor due to the small number of samples. Overall, Random Forest demonstrates better learning of nonlinear patterns but still struggles with imbalance. 
-
-#%%
-from imblearn.over_sampling import SMOTE
-from imblearn.pipeline import Pipeline
-
-sm = SMOTE(random_state=42)
-rf = RandomForestClassifier(n_estimators=300, random_state=42)
-
-pipeline = Pipeline([
-    ('smote', sm),
-    ('rf', rf)
-])
-
-pipeline.fit(X_train, y_train)
-pred = pipeline.predict(X_test)
-
-print(classification_report(y_test, pred))
-
-#%%
-proba = rf_model.predict_proba(X_test)[:, 1]
-pred_thresh = (proba > 0.1).astype(int)
-print(classification_report(y_test, pred_thresh))
+##### The class-weighted Random Forest shows a clear improvement over logistic regression, especially in identifying the majority class (1.0). Precision for class 1 remains extremely high (0.99), and recall increases to 0.72, leading to a strong F1-score of 0.83. Performance on the minority class (0.0) is still limited due to the very small support, while recall from changes from 0.72 (logistic) to 0.58, while precision remains low (0.04). Overall accuracy rises to 0.72, reflecting better learning of nonlinear patterns in the data. Although the minority class is still challenging, Random Forest provides a more robust and balanced performance than logistic regression under severe class imbalance.
 
 #%%[markdown]
 #### Conclusion for Q2:
-#### The results from Logistic Regression, Random Forest, and SMOTE-based resampling consistently show that the current set of socioeconomic variables provides very limited predictive power for distinguishing adults with and without a mental health diagnosis. Even after addressing the extreme class imbalance with class weighting and SMOTE, the models were unable to learn a strong or stable pattern for the minority class. SMOTE improved recall for the “No” group but did so at the cost of extremely low precision and substantial declines in majority-class accuracy, indicating that the model was capturing synthetic patterns rather than meaningful real-world structure.
-
-#### Threshold tuning was also explored to further improve minority-class detection. Although lowering the classification threshold increased the model’s willingness to label cases as “No,” the predicted probabilities remained heavily skewed toward the majority class. As a result, even very low thresholds produced only minimal gains in minority recall and led to a surge in false positives, confirming that the model had not learned any reliable signal for identifying “No” cases.
-
-#### Overall, the modeling results indicate that the predictive limitations arise primarily from the underlying data and feature set, not from the choice of algorithm or imbalance-handling technique. To build a model capable of meaningful minority-class prediction, a more balanced dataset and the inclusion of richer behavioral, clinical, or contextual variables would be required.
-
+#### The models showed that socioeconomic factors do provide useful signal in predicting mental health diagnosis, as reflected by the strong performance on the majority class. However, overall prediction strength was limited by the severe class imbalance in the dataset, which made it difficult for both models to correctly identify the minority group. This means the factors in the dataset do provide useful predictive signal, but they are not strong enough on their own to fully explain or separate mental health outcomes.
 
 #%% [markdown]
 ### Smart question 3
