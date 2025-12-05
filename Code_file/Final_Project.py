@@ -12,6 +12,8 @@ from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import classification_report, roc_auc_score, roc_curve
+from imblearn.over_sampling import SMOTE
+
 pd.set_option('display.max_columns', None)
 
 # %%
@@ -21,11 +23,18 @@ data = pd.read_csv("PCS.csv")
 #%% [markdown]
 ## 1. Background
 
-# Mental health and housing stability are ongoing concerns in New York State. Many adults face financial stress, limited insurance coverage, and varying levels of social support, all of which may influence both mental-health outcomes and where a person lives. Prior work shows that social determinants such as economic stability and housing conditions are closely linked to mental-health risk (Maqbool et al., 2015).
+# Mental health and housing stability are ongoing concerns in New York State. 
+# Many adults face financial stress, limited insurance coverage, and varying levels of social support, 
+# all of which may influence both mental-health outcomes and where a person lives. 
+# Prior work shows that social determinants such as economic stability and housing conditions are closely linked to mental-health risk (Maqbool et al., 2015).
 #
-# The 2019 PCS dataset provides detailed information on mental illness, socioeconomic conditions, and living arrangements. Because it includes both health-related and financial variables, it allows us to examine how factors such as employment, education, assistance programs, and insurance relate to mental-health reporting and housing categories. Studies have found that access to insurance and financial resources plays an important role in shaping mental-health outcomes (Tanarsuwongkul et al., 2025).
+# The 2019 PCS dataset provides detailed information on mental illness, socioeconomic conditions, 
+# and living arrangements. Because it includes both health-related and financial variables, 
+# it allows us to examine how factors such as employment, education, assistance programs, 
+# and insurance relate to mental-health reporting and housing categories. Studies have found that access to insurance and financial resources plays an important role in shaping mental-health outcomes (Tanarsuwongkul et al., 2025).
 #
-# In this project, we use the PCS data to describe these relationships and evaluate how well socioeconomic variables can predict mental illness and different types of living situations. Understanding these links is important because housing and mental health often influence one another in meaningful ways (Healthy People 2030).
+# In this project, we use the PCS data to describe these relationships and evaluate how well socioeconomic variables can predict mental illness and different types of living situations. 
+# Understanding these links is important because housing and mental health often influence one another in meaningful ways (Healthy People 2030).
 #%% [markdown]
 ## 2. Data Cleaning
 # We converted the entries labeled “UNKNOWN” into missing values and removed them to ensure that the dataset is clean and suitable for analysis.
@@ -781,8 +790,10 @@ plt.tight_layout()
 plt.show()
 
 #%%[markdown]
-# None of the predictors show high correlation in the Cramér’s V matrix, 
-# and most relationships stay below 0.60. This means there is no strong multicollinearity issue, so all variables can be kept for modeling.
+# None of the predictors show high correlation in the Cramér’s V matrix, and almost all values stay well below 0.60. 
+# This indicates that there is no strong multicollinearity issue among the variables. 
+# In addition, our analysis does not use linear regression models, so multicollinearity would not be a major concern in the first place. 
+# Based on these results, all variables were kept for modeling.
 
 #%%
 # Prepare data for modeling
@@ -856,7 +867,7 @@ plt.show()
 rf_model = RandomForestClassifier(
     n_estimators = 300,
     max_depth = None,
-    class_weight = 'balanced',
+    class_weight = 'balanced_subsample',
     random_state = 42)
 
 # Train
@@ -883,11 +894,13 @@ plt.title("Confusion Matrix — Random Forest")
 plt.show()
 
 #%%[markdown]
-# The random forest performs slightly better than logistic regression, achieving an accuracy of about 0.54. 
-# The majority class (Private Residence) still shows very high precision (0.94) but only moderate recall (0.51). 
-# The Other Living Situation category improves substantially, reaching a recall of 0.70. However, 
-# the Institutional Setting group remains difficult for the model to predict, with extremely low precision (0.02) because it represents less than 1 percent of the dataset. Overall, 
-# these results show that the random forest captures more structure than logistic regression, but the severe class imbalance continues to limit performance.
+# The random forest model performed better than logistic regression, with an overall accuracy of about 0.56. 
+# For the largest group, Private Residence, precision stayed very high at 0.94, and recall was 0.55. 
+# The Other Living Situation group also improved, with a recall of 0.56. 
+# The Institutional Setting category remained the most difficult to predict. 
+# Its precision was still extremely low (0.03), but recall increased to 0.64, mainly because the number of real cases in the test set is very small. 
+# Overall, the random forest learned more structure than logistic regression, 
+# but the severe class imbalance still limited how well the model could predict the minority group.
 
 #%%[markdown]
 #### SMOTE + Random Froest
@@ -907,7 +920,7 @@ print("After SMOTE:", pd.Series(y_train_sm).value_counts())
 rf_sm = RandomForestClassifier(
     n_estimators = 300,
     max_depth = None,
-    class_weight = None,
+    class_weight = "balanced_subsample",
     random_state = 42)
 
 rf_sm.fit(X_train_sm, y_train_sm)
@@ -918,12 +931,12 @@ print(confusion_matrix(y_test, sm_pred))
 print(classification_report(y_test, sm_pred, target_names = le.classes_))
 
 #%%[markdown]
-# After applying SMOTE to the training data, the random forest improves slightly. 
-# The overall accuracy reaches about 0.56. 
-# For the majority class (Private Residence), precision is 0.93 and recall is 0.53. 
-# The Other Living Situation class shows better performance, with recall increasing to 0.69. 
-# The Institutional Setting class still has very low precision (0.02) even though its recall improves to 0.52, mainly because the test set contains very few real cases from this group. 
-# The weighted F1-score is about 0.63, making the SMOTE + Random Forest model the most balanced option among the ones tested.
+# After applying SMOTE to the training data, the random forest improved a bit. 
+# The overall accuracy went up to about 0.58. For the largest group, Private Residence, 
+# precision stayed high at 0.94 and recall increased to 0.58. The Other Living Situation group also performed better with a recall of 0.57. 
+# The Institutional Setting category still had very low precision (0.03), but its recall increased to 0.60, 
+# mainly because the test set contains very few actual cases from this group. 
+# The weighted F1-score was about 0.65, so the SMOTE + random forest model ended up being the most balanced option among the ones we tried.
 
 #%%[markdown]
 #### Feature Importance
@@ -946,20 +959,24 @@ plt.title("Top 15 Important Features (Random Forest + SMOTE)")
 plt.show()
 
 #%%[markdown]
-# The Random Forest results suggest that insurance coverage and financial assistance are the most useful predictors of living situation. Private Insurance,
-# SSI Cash Assistance, and being outside the labor force show the highest importance,
-# meaning these factors help the model separate the three housing groups the most. 
-# Age Group (especially being a child) and Medicaid/Medicare also matter because they are closely linked with certain types of housing.
-# Education and other employment categories still add some information, but smaller groups like Non-paid/Volunteer contribute very little.
+# Past studies also point out that people’s financial support and insurance coverage are closely related to how stable their housing is. 
+# For example, Fenelon et al. (2017) showed that housing assistance can help people maintain more stable living conditions and improve their overall well-being. 
+# Friedman et al. (2022) also found that low-income individuals who rely on Medicaid often face more housing instability. These patterns match our results, 
+# where insurance and different types of cash assistance showed up as some of the strongest factors for predicting a person’s living situation.
 
 #%%[markdown]
 #### Conclusion for Q3
 #
-# In Q3, predicting living situation was difficult because the classes were extremely imbalanced and their patterns overlapped a lot. 
-# Logistic regression performed poorly(accuracy about 0.49), and while the random forest did better, it still had trouble with the smallest group. 
-# After applying SMOTE, the random forest reached about 0.56 accuracy and gave the most balanced performance overall. 
-# Insurance coverage, financial assistance, age, and employment status were the main predictors, and these variables helped the model separate the three living-situation groups more effectively.
-
+# In Q3, predicting living situation was challenging because the classes were extremely imbalanced and the patterns overlapped. 
+# Logistic regression performed poorly (accuracy around 0.49), and although the random forest model performed slightly better, 
+# it still struggled with the smallest category. After applying SMOTE, the random forest improved and reached about 0.56 accuracy, 
+# producing the most balanced results among the models we tested.
+# 
+# We also tried XGBoost, but it completely failed to predict the minority class. 
+# Its overall accuracy appeared high only because it assigned almost every observation to the majority group. 
+# In addition, we experimented with making all classes the same size by reducing the larger classes down to the Institutional class level. However, 
+# this caused the total sample size to drop sharply, and the model became unstable with low accuracy. Because of these limitations, 
+# the SMOTE-based random forest provided the most practical and interpretable results for Q3 and was selected as our main model.
 
 
 #%% [markdown]
@@ -974,16 +991,25 @@ plt.show()
 
 #%% [markdown]
 ## 6. Recommendations
-# A main limitation in this project is the severe class imbalance across all three questions, which makes the smaller groups difficult for the models to learn and leads to unstable results. Another issue is that most variables in the PCS dataset are categorical and split into many small levels, increasing the chance of overfitting and limiting the models’ ability to capture stronger patterns.
+# A main limitation in this project is the severe class imbalance across all three questions, 
+# which makes the smaller groups difficult for the models to learn and leads to unstable results. 
+# Another issue is that most variables in the PCS dataset are categorical and split into many small levels, 
+# increasing the chance of overfitting and limiting the models’ ability to capture stronger patterns.
 #
-# For the next step, we could try more advanced imbalance-handling methods such as Balanced Random Forest or XGBoost with class weights to improve the performance for minority groups. Adding continuous variables, if they become available, may help strengthen the predictive signal. It may also be useful to analyze minority groups separately so their patterns are not overshadowed by the dominant majority class.
+# For the next step, we could try more advanced imbalance-handling methods such as Balanced Random Forest or XGBoost with class weights to improve the performance for minority groups. 
+# Adding continuous variables, if they become available, may help strengthen the predictive signal. 
+# It may also be useful to analyze minority groups separately so their patterns are not overshadowed by the dominant majority class.
 
 
 #%% [markdown]
 ## 7. References
+# Fenelon, A., Slopen, N., Boudreaux, M., & Pollack, C. E. (2017). *Housing assistance programs and adult health in the United States.* American Journal of Public Health, 107(4), 571–578. https://doi.org/10.2105/AJPH.2016.303649
+#
+# Friedman, C., Schiro, S., & Remmert, J. E. (2022). *Housing insecurity of Medicaid beneficiaries with cognitive disabilities during the COVID-19 pandemic.* Journal of Social Distress and the Homeless. Advance online publication. https://doi.org/10.1080/10530789.2022.2096710
+#
 # Healthy People 2030. (n.d.). *Housing instability.* Office of Disease Prevention and Health Promotion. https://health.gov/
 #
 # Maqbool, N., Viveiros, J., & Ault, M. (2015). *The impacts of affordable housing on health: A research summary.* National Housing Conference.
 #
-#Tanarsuwongkul, S., et al. (2025). Associations between social determinants of health and mental health disorders among US adults. *Epidemiology and Psychiatric Sciences.*
+# Tanarsuwongkul, S., et al. (2025). Associations between social determinants of health and mental health disorders among US adults. *Epidemiology and Psychiatric Sciences.*
 # %%
