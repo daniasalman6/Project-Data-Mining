@@ -939,44 +939,104 @@ print(classification_report(y_test, sm_pred, target_names = le.classes_))
 # The weighted F1-score was about 0.65, so the SMOTE + random forest model ended up being the most balanced option among the ones we tried.
 
 #%%[markdown]
+#### Remove minority class with SMOTE + Random Froest
+# After the presentation, we addressed the imbalance issue by removing the minority classes, 
+# turning the Y variable into a binary outcome.
+
+#%%
+# Keep the class we need
+data_q3_2class = data_q3[
+    data_q3["Living Situation"].isin([
+        "PRIVATE RESIDENCE",
+        "OTHER LIVING SITUATION"])].copy()
+
+#%%
+# Dependent variable and indenpendent variable
+y_last = data_q3_2class["Living Situation"]
+X_last = data_q3_2class.drop(columns=["Living Situation"])
+
+#%%
+# One-hot encode X
+X_last = pd.get_dummies(X_last, drop_first=True).astype(float)
+
+# Encode y
+le2 = LabelEncoder()
+y_last_encoded = le2.fit_transform(y_last)
+
+#%%
+# Train-test split
+X2_train, X2_test, y2_train, y2_test = train_test_split(
+    X_last, y_last_encoded,
+    test_size=0.30,
+    random_state=42,
+    stratify=y_last_encoded)
+
+#%%
+# Apply SMOTE
+sm2 = SMOTE(random_state=42, k_neighbors=5)
+X2_train_sm, y2_train_sm = sm2.fit_resample(X2_train, y2_train)
+
+#%%
+rf2_sm = RandomForestClassifier(
+    n_estimators=300,
+    max_depth=None,
+    class_weight="balanced_subsample",
+    random_state=42
+)
+
+rf2_sm.fit(X2_train_sm, y2_train_sm)
+y2_pred_sm = rf2_sm.predict(X2_test)
+
+print(confusion_matrix(y2_test, y2_pred_sm))
+print(classification_report(y2_test, y2_pred_sm, target_names=le2.classes_))
+
+#%%[markdown]
+# The model reached an accuracy of 0.67.
+# For Private Residence, precision was high at 0.93 and recall was 0.64, so the model predicts this group fairly well.
+# For Other Living Situation, recall was 0.80, but precision was lower at 0.33, meaning many predictions were incorrect.
+# The weighted F1-score was 0.70, which shows the overall performance is acceptable after switching to a binary target.
+# Compared to the earlier multi-class results, the binary version performs better, especially in recall.
+
+#%%[markdown]
 #### Feature Importance
+# %%
 
-#%%
-importances = rf_sm.feature_importances_
-feature_names = X.columns
+importances2 = rf2_sm.feature_importances_
+feature_names2 = X_last.columns
 
-imp_df = pd.DataFrame({
-    "Feature": feature_names,
-    "Importance": importances}).sort_values(by = "Importance", ascending = False)
+imp2_df = pd.DataFrame({
+    "Feature": feature_names2,
+    "Importance": importances2
+}).sort_values(by="Importance", ascending=False)
 
-imp_df.head(15)
-
-#%%
-plt.barh(imp_df.head(15)["Feature"], imp_df.head(15)["Importance"])
+# Plot Top 15 Features
+plt.barh(imp2_df.head(15)["Feature"], imp2_df.head(15)["Importance"])
 plt.gca().invert_yaxis()
-plt.xlabel("Important level")
-plt.title("Top 15 Important Features (Random Forest + SMOTE)")
+plt.xlabel("Importance Level")
+plt.title("Top 15 Important Features (Random Forest + Binary Target)")
 plt.show()
 
 #%%[markdown]
-# Past studies also point out that people’s financial support and insurance coverage are closely related to how stable their housing is. 
-# For example, Fenelon et al. (2017) showed that housing assistance can help people maintain more stable living conditions and improve their overall well-being. 
-# Friedman et al. (2022) also found that low-income individuals who rely on Medicaid often face more housing instability. These patterns match our results, 
-# where insurance and different types of cash assistance showed up as some of the strongest factors for predicting a person’s living situation.
+# Our results show that financial support and insurance coverage are closely related to a person’s living situation. 
+# Age is the strongest factor in the model. People in different age groups tend to face different levels of financial pressure, access to benefits, and stability in housing, which helps explain why age stands out so clearly in the feature importance ranking. 
+# Insurance variables such as private insurance, Medicaid, and Medicare also appear near the top of the importance ranking. 
+# Cash assistance programs including SSI and public assistance further contribute to predicting living stability.
+# These findings match what previous studies have reported. Fenelon et al. (2017) found that housing assistance helps people maintain stable living conditions. 
+# Friedman et al. (2022) observed that people who rely on Medicaid often experience more housing instability. 
+# The patterns in our model are consistent with these observations because insurance and cash benefits play major roles in determining living situations.
 
 #%%[markdown]
 #### Conclusion for Q3
-#
-# In Q3, predicting living situation was challenging because the classes were extremely imbalanced and the patterns overlapped. 
-# Logistic regression performed poorly (accuracy around 0.49), and although the random forest model performed slightly better, 
-# it still struggled with the smallest category. After applying SMOTE, the random forest improved and reached about 0.56 accuracy, 
-# producing the most balanced results among the models we tested.
-# 
-# We also tried XGBoost, but it completely failed to predict the minority class. 
-# Its overall accuracy appeared high only because it assigned almost every observation to the majority group. 
-# In addition, we experimented with making all classes the same size by reducing the larger classes down to the Institutional class level. However, 
-# this caused the total sample size to drop sharply, and the model became unstable with low accuracy. Because of these limitations, 
-# the SMOTE-based random forest provided the most practical and interpretable results for Q3 and was selected as our main model.
+
+# In Q3, predicting living situation was challenging because the classes were highly imbalanced and the patterns between groups were very similar. 
+# Logistic regression did not perform well with an accuracy of about 0.49. The random forest model did slightly better, but it still struggled to identify the smallest class. 
+# After applying SMOTE, the random forest improved to an accuracy of around 0.56 and became the most balanced model among the ones we tested.
+# We also tested an equal-size sampling method by reducing the larger groups to the size of the Institutional group, but this caused a major loss of data and made the model unstable.
+# Based on these results, the SMOTE random forest was the most practical choice for Q3. 
+# The feature importance results showed that age was the strongest predictor, followed by insurance coverage such as private insurance, Medicaid, and Medicare. 
+# Cash assistance programs, including SSI and public assistance, also played an important role. 
+# Overall, these factors helped the model distinguish between different living situations more effectively than other variables.
+
 
 
 #%% [markdown]
@@ -984,7 +1044,7 @@ plt.show()
 # Across the three smart questions, the PCS dataset helped reveal clear patterns linking socioeconomic and demographic factors with both mental-illness reporting and living-situation categories. Although data imbalance limited prediction strength, the analyses consistently identified which variables had the greatest influence on each outcome.
 #
 # For mental illness (Q1 & Q2), age group, education, household composition, employment status, and several insurance/assistance variables showed meaningful associations, indicating that social and economic stability is linked with how individuals report mental-health conditions.
-# For living situation (Q3), insurance coverage, cash-assistance programs, age group, and employment status were the strongest predictors, helping separate private residence, institutional settings, and other living arrangements.
+# For living situation (Q3), age group, insurance coverage, cash-assistance programs, and employment status were the strongest predictors, helping separate private residence, institutional settings, and other living arrangements.
 #
 # Overall, the models highlighted the importance of insurance, financial support, age, and employment as the most consistent drivers across all three questions, providing useful insight into how socioeconomic conditions shape both mental-health outcomes and housing patterns in New York State.
 
@@ -1012,4 +1072,3 @@ plt.show()
 # Maqbool, N., Viveiros, J., & Ault, M. (2015). *The impacts of affordable housing on health: A research summary.* National Housing Conference.
 #
 # Tanarsuwongkul, S., et al. (2025). Associations between social determinants of health and mental health disorders among US adults. *Epidemiology and Psychiatric Sciences.*
-# %%
