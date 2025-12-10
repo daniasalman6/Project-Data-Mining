@@ -24,7 +24,7 @@ pd.set_option('display.max_columns', None)
 
 # %%
 # Read data
-data = pd.read_csv("PCS.csv")
+data = pd.read_csv("PCS_data")
 
 #%% [markdown]
 ## 1. Background
@@ -52,7 +52,7 @@ data = pd.read_csv("PCS.csv")
 
 # Choose variables we need in all smart questions
 cols_all = [
-    "Mental Illness", "Living Situation",
+    "Mental Illness", "Serious Mental Illness", "Living Situation",
     "Race", "Sex", "Age Group",
     "Education Status", "SSI Cash Assistance", "SSDI Cash Assistance",
     "Public Assistance Cash Program", "Other Cash Benefits",
@@ -91,9 +91,12 @@ data1_clean.describe()
 
 # Only keep YES/NO rows - no "Unknown"
 data1_clean = data1_clean[data1_clean['Mental Illness'].isin(['NO','YES'])]
+data1_clean = data1_clean[data1_clean['Serious Mental Illness'].isin(['NO','YES'])]
 
 # Code variable of interest as 0="NO" and 1="YES"
 data1_clean['Mental Illness'] = data1_clean['Mental Illness'].map({'NO': 0, 'YES': 1})
+data1_clean['Serious Mental Illness'] = data1_clean['Serious Mental Illness'].map({'NO': 0, 'YES': 1})
+
 
 #%%
 # Create values for independent variables
@@ -127,7 +130,22 @@ data1_clean['Mental Illness'] = data1_clean['Mental Illness'].map({'NO': 0, 'YES
 #%%[markdown]
 # Over 90% of individuals in New York said they have a mental illness.
 
+#%%
+# Plot prevalence of Serious Mental Illness
+data1_clean['Serious Mental Illness'] = data1_clean['Serious Mental Illness'].map({0: 'NO', 1: 'YES'})
 
+data1_clean['Serious Mental Illness'].value_counts()
+data1_clean['Serious Mental Illness'].value_counts(normalize=True).plot(kind='bar', color='steelblue')
+plt.title('Prevalence of Serious Mental Illness')
+plt.ylabel('Proportion')
+plt.xlabel('Mental Illness')
+plt.xticks(rotation=0)
+plt.show()
+#%%
+data1_clean['Serious Mental Illness'] = data1_clean['Serious Mental Illness'].map({'NO': 0, 'YES': 1}
+
+#%% [markdown]
+# The amount of patients with a mental illness vs. a serious mental illness does not differ.
 #%%[markdown]
 #### Plotting all variables and their relationship with mental illness presence
 
@@ -149,6 +167,8 @@ def bar_plot(col):
 # Generate plots
 for var in categorical_cols:
     bar_plot(var)
+
+
 
 #%%[markdown]
 # Mental illness prevalence is roughly the same among all races and genders. Adults are more
