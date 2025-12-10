@@ -15,6 +15,12 @@ from sklearn.metrics import classification_report, roc_auc_score, roc_curve
 from imblearn.over_sampling import SMOTE
 
 pd.set_option('display.max_columns', None)
+#%%[markdown]
+## Dataset and Git Hub Link
+#
+# [Dataset](https://data.ny.gov/Human-Services/Patient-Characteristics-Survey-PCS-2019/urn3-ezfe/about_data)
+#
+# [Git Hub](https://github.com/daniasalman6/Project-Data-Mining)
 
 # %%
 # Read data
