@@ -24,7 +24,7 @@ pd.set_option('display.max_columns', None)
 
 # %%
 # Read data
-data = pd.read_csv("PCS_data")
+data = pd.read_csv("PCS_data.csv")
 
 #%% [markdown]
 ## 1. Background
@@ -142,7 +142,7 @@ plt.xlabel('Mental Illness')
 plt.xticks(rotation=0)
 plt.show()
 #%%
-data1_clean['Serious Mental Illness'] = data1_clean['Serious Mental Illness'].map({'NO': 0, 'YES': 1}
+data1_clean['Serious Mental Illness'] = data1_clean['Serious Mental Illness'].map({'NO': 0, 'YES': 1})
 
 #%% [markdown]
 # The amount of patients with a mental illness vs. a serious mental illness does not differ.
@@ -1043,26 +1043,26 @@ plt.title("Top 15 Important Features (Random Forest + Binary Target)")
 plt.show()
 
 #%%[markdown]
-# Our results show that financial support and insurance coverage are closely related to a person’s living situation. 
-# Age is the strongest factor in the model. People in different age groups tend to face different levels of financial pressure, access to benefits, and stability in housing, which helps explain why age stands out so clearly in the feature importance ranking. 
-# Insurance variables such as private insurance, Medicaid, and Medicare also appear near the top of the importance ranking. 
-# Cash assistance programs including SSI and public assistance further contribute to predicting living stability.
-# These findings match what previous studies have reported. Fenelon et al. (2017) found that housing assistance helps people maintain stable living conditions. 
-# Friedman et al. (2022) observed that people who rely on Medicaid often experience more housing instability. 
-# The patterns in our model are consistent with these observations because insurance and cash benefits play major roles in determining living situations.
-
+# Our results show that financial support and insurance coverage have a strong relationship with a person’s living situation. 
+# Age was the most important factor in our model, likely because people in different age groups face different levels of financial pressure and access to benefits. 
+# Insurance variables like private insurance, Medicaid, and Medicare were also high in importance. Cash assistance programs such as SSI and public assistance helped predict housing stability as well.
+# 
+# These results are similar to findings from earlier studies. Fenelon et al. (2017) reported that housing assistance helps people stay in stable living situations, 
+# and Friedman et al. (2022) found that people who rely on Medicaid often face more housing instability. Our model shows a similar pattern, 
+# where insurance and financial support play major roles in living conditions.
 #%%[markdown]
 #### Conclusion for Q3
 
-# In Q3, predicting living situation was challenging because the classes were highly imbalanced and the patterns between groups were very similar. 
-# Logistic regression did not perform well with an accuracy of about 0.49. The random forest model did slightly better, but it still struggled to identify the smallest class. 
-# After applying SMOTE, the random forest improved to an accuracy of around 0.56 and became the most balanced model among the ones we tested.
-# We also tested an equal-size sampling method by reducing the larger groups to the size of the Institutional group, but this caused a major loss of data and made the model unstable.
-# Based on these results, the SMOTE random forest was the most practical choice for Q3. 
-# The feature importance results showed that age was the strongest predictor, followed by insurance coverage such as private insurance, Medicaid, and Medicare. 
-# Cash assistance programs, including SSI and public assistance, also played an important role. 
-# Overall, these factors helped the model distinguish between different living situations more effectively than other variables.
-
+# Predicting living situation in Q3 was difficult because the classes were very imbalanced and looked similar. 
+# Logistic regression didn’t work well, with an accuracy of about 0.49. Random forest did a little better but still couldn’t identify the smallest group. After using SMOTE, 
+# the random forest improved to around 0.56 and became the most balanced model we had.
+#
+# We also tried downsampling the larger groups to match the Institutional group, but that removed too much data and made the model unstable. 
+# So, the SMOTE random forest ended up being the most practical choice.
+#
+# From the feature importance results, age was the strongest predictor. Insurance types like private insurance, Medicaid, 
+# and Medicare were also important, and cash assistance programs such as SSI and public assistance played a noticeable role. Overall, 
+# these factors helped the model separate the living situation categories better than the others.
 
 
 #%% [markdown]
