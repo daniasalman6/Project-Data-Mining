@@ -172,12 +172,12 @@ for var in categorical_cols:
 
 #%%[markdown]
 # Mental illness prevalence is roughly the same among all races and genders. Adults are more
-# likely to have a mental illness than children, and the more eduacted an individual is, the more 
-# likely they are to have a mental illness. Suprisingly, mental health prescence does not differ 
-# between those that are and are not veterans, and mental health prescence is about the same among 
-# regions in New York. There is also a small difference of thos who have mental illnesses among
+# likely to have a mental illness than children, and the more educacted an individual is, the more 
+# likely they are to have a mental illness. Surprisingly, mental health presence does not differ 
+# between those that are and are not veterans, and mental health presence is about the same among 
+# regions in New York. There is also a small difference of those who have mental illnesses among
 # straight and non-heterosexual orientations. Those who live with others have a slightly less share
-# of people who have a mental illness than those who live alone. Suprinsignly, the prescence of those 
+# of people who have a mental illness than those who live alone. Surprinsignly, the presence of those 
 # who have a mental illness is the same among those who do and do not have alcohol related and drug 
 # substance disorders. 
 
@@ -250,7 +250,7 @@ print(odds_ratios)
 plt.figure(figsize=(8, 6))
 sns.barplot(data=odds_ratios, x="Odds Ratio", y="Feature")
 plt.title("Odds Ratios from Logistic Regression")
-plt.axvline(1, color='red', linestyle='--')  # 1 = no effect
+plt.axvline(1, color='red', linestyle='--')  
 plt.tight_layout()
 plt.show()
 
@@ -299,7 +299,7 @@ plt.show()
 
 #%%[markdown]
 # When class imbalance is accounted for, a decent amount of individuals who do not have a mental 
-# illness are identified. The model accuracy is now 76%, but identifies those without a mental illness. 
+# illness are identified. The model accuracy is now 76% but identifies those without a mental illness. 
 # The demographic/independent variables have modest predictive power now. 
 
 #%%  
@@ -320,6 +320,7 @@ print(odds_df)
 # Plot odds ratios
 plt.figure(figsize=(8,6))
 sns.barplot(x='Odds Ratio', y='Feature', data=odds_df.sort_values('Odds Ratio', ascending=False))
+plt.axvline(x=1.0, color='red', linestyle='--', linewidth=1)
 plt.title('Logistic Regression Odds Ratios')
 plt.show()
 
@@ -376,7 +377,7 @@ plt.show()
 # The random forest model demonstrates that region served, education status, and race are the most 
 # significant predictors of mental illness. Sexual orientation, household composition, and age group 
 # have some importance on the model. Sex, alcohol related disorder, drug substance disorder, and 
-# veteran status do not contribute much to the model's predictions. 
+# veteran status does not contribute much to the model's predictions. 
 #%%[markdown]
 #### Fit Random Forest with balanced class weighting
 
@@ -429,7 +430,7 @@ plt.show()
 #%%[markdown]
 # Region served, education status, and age group are the most influential predictors
 # of mental illness. Race, sexual orientation, and household consumption have some importance
-# on predicting mental illness. Sex, alchohol related disorder, drug substance disorder, and
+# on predicting mental illness. Sex, alcohol related disorder, drug substance disorder, and
 # veteran status did not contribute much to the model.
 
 #%%[markdown]
