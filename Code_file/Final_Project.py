@@ -145,7 +145,7 @@ plt.show()
 data1_clean['Serious Mental Illness'] = data1_clean['Serious Mental Illness'].map({'NO': 0, 'YES': 1})
 
 #%% [markdown]
-# The amount of patients with a mental illness vs. a serious mental illness does not differ.
+# The amount of patients with a mental illness vs. a serious mental illness does not differ much.
 #%%[markdown]
 #### Plotting all variables and their relationship with mental illness presence
 
@@ -325,9 +325,8 @@ plt.title('Logistic Regression Odds Ratios')
 plt.show()
 
 #%%[markdown]
-# The improved logistic regression suggests that being older decreases the chance of having a mental illness, cohabitating
-# with others and substance use minimally increases the risk of having a mental illness. All demographic variables have 
-# small impacts on mental illnesses. 
+# The improved logistic regression suggests that being older decreases the chance of having a mental illness, and cohabitating
+# with others minimally increases the risk of having a mental illness. 
 
 #%%[markdown]
 #### Random Forest
